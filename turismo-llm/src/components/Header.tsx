@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { TrendingUp, Search, Bell, HelpCircle } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { TrendingUp, Search, Bell, HelpCircle, LogOut, User } from 'lucide-react';
 
 interface HeaderProps {
   searchTerm: string;
@@ -9,6 +9,15 @@ interface HeaderProps {
 
 export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
   const [notificacoes, setNotificacoes] = useState(3);
+  const [menuPerfilAberto, setMenuPerfilAberto] = useState(false);
+  
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // Se tiver lógica de limpar localStorage/tokens, insira aqui.
+    setMenuPerfilAberto(false);
+    navigate('/login');
+  };
 
   return (
     <header className="bg-white border-b border-[#E2E8F0] px-6 py-4 flex items-center justify-between sticky top-0 z-50">
@@ -101,16 +110,55 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 border-l border-[#E2E8F0] pl-6">
-          <div className="text-right">
+        {/* Bloco do Perfil com Dropdown */}
+        <div className="flex items-center gap-3 border-l border-[#E2E8F0] pl-6 relative">
+          <div className="text-right hidden sm:block">
             <p className="text-sm font-semibold text-[#1b1c1d]">Admin Manager</p>
             <p className="text-xs text-[#74777d]">Level 1</p>
           </div>
-          <img 
-            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
-            alt="Avatar" 
-            className="w-9 h-9 rounded-full object-cover"
-          />
+          
+          <button 
+            onClick={() => setMenuPerfilAberto(!menuPerfilAberto)}
+            className="focus:outline-none hover:opacity-80 transition-opacity relative z-20"
+          >
+            <img 
+              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
+              alt="Avatar" 
+              className="w-9 h-9 rounded-full object-cover border border-[#E2E8F0]"
+            />
+          </button>
+
+          {/* Menu Dropdown de Perfil */}
+          {menuPerfilAberto && (
+            <>
+              {/* Backdrop invisível para fechar o menu ao clicar fora */}
+              <div 
+                className="fixed inset-0 z-10" 
+                onClick={() => setMenuPerfilAberto(false)}
+              ></div>
+              
+              <div className="absolute right-0 top-12 mt-2 w-48 bg-white border border-[#E2E8F0] rounded-md shadow-lg py-1 z-20 text-left">
+                <div className="px-4 py-2 border-b border-[#E2E8F0] sm:hidden">
+                  <p className="text-sm font-semibold text-[#1b1c1d]">Admin Manager</p>
+                  <p className="text-xs text-[#74777d]">Level 1</p>
+                </div>
+
+                <button 
+                  onClick={() => { alert('Navegando para o perfil...'); setMenuPerfilAberto(false); }}
+                  className="w-full px-4 py-2.5 text-xs text-[#44474c] hover:bg-slate-50 font-medium flex items-center gap-2 transition-colors"
+                >
+                  <User className="w-3.5 h-3.5" /> Meu Perfil
+                </button>
+
+                <button 
+                  onClick={handleLogout}
+                  className="w-full px-4 py-2.5 text-xs text-rose-700 hover:bg-rose-50 font-medium flex items-center gap-2 border-t border-[#E2E8F0] transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Sair da Conta
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>
