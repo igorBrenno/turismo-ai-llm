@@ -19,6 +19,12 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
     navigate('/login');
   };
 
+  const handleProfile = () => {
+    // Se tiver lógica de limpar localStorage/tokens, insira aqui.
+    setMenuPerfilAberto(false);
+    navigate('/profile');
+  };
+
   return (
     <header className="bg-white border-b border-[#E2E8F0] px-6 py-4 flex items-center justify-between sticky top-0 z-50">
       <div className="flex items-center gap-8">
@@ -144,7 +150,7 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
                 </div>
 
                 <button 
-                  onClick={() => { alert('Navegando para o perfil...'); setMenuPerfilAberto(false); }}
+                  onClick={handleProfile}
                   className="w-full px-4 py-2.5 text-xs text-[#44474c] hover:bg-slate-50 font-medium flex items-center gap-2 transition-colors"
                 >
                   <User className="w-3.5 h-3.5" /> Meu Perfil
