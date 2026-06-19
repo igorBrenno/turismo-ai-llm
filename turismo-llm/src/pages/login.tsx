@@ -87,7 +87,7 @@ export default function Login() {
                 {/* Input de Email */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-[#44474c] tracking-wider block" htmlFor="email">
-                    E-MAIL CORPORATIVO
+                    E-MAIL
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-[#74777d] pointer-events-none">
@@ -97,7 +97,7 @@ export default function Login() {
                       id="email"
                       type="email" 
                       required
-                      placeholder="exemplo@organizacao.com" 
+                      placeholder="exemplo@gmail.com" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={isLoading}
@@ -153,7 +153,7 @@ export default function Login() {
               <button 
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-[#041627] text-white font-semibold rounded-lg hover:bg-[#1a2b3c] transition-all active:scale-[0.99] flex justify-center items-center gap-2 disabled:opacity-75 disabled:pointer-events-none"
+                className="w-full py-3 px-4 bg-[#041627] text-white font-semibold rounded-lg hover:bg-[#112336] transition-all active:scale-[0.99] flex justify-center items-center gap-2 disabled:opacity-75 disabled:pointer-events-none shadow-sm"
               >
                 {isLoading ? (
                   <>
@@ -169,9 +169,23 @@ export default function Login() {
               </button>
             </form>
 
+            {/* Redirecionamento para Registro */}
+            <div className="text-center pt-2">
+              <p className="text-sm text-[#44474c]">
+                Não possui uma conta?{' '}
+                <button
+                  onClick={() => navigate('/register')}
+                  disabled={isLoading}
+                  className="text-[#041627] font-bold hover:underline transition-all focus:outline-none disabled:opacity-60"
+                >
+                  Criar Conta
+                </button>
+              </p>
+            </div>
+
             {/* Rodapé da Caixa de Login */}
             <div className="pt-6 border-t border-[#c4c6cd] flex flex-col sm:flex-row justify-between gap-3 text-[#44474c] text-xs font-medium">
-              <p>© 2024 TouristWatch AI. Todos os direitos reservados.</p>
+              <p>© 2026 TouristWatch AI. Todos os direitos reservados.</p>
               <div className="flex gap-4">
                 <a href="#terms" className="hover:text-[#041627] transition-colors">Termos</a>
                 <a href="#privacy" className="hover:text-[#041627] transition-colors">Privacidade</a>
