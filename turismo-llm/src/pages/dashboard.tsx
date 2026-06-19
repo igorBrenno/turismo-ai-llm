@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   MessageSquare, AlertTriangle, XCircle, MoreVertical, 
   MapPin, Shield, Home, CheckCircle2, Trash2 
