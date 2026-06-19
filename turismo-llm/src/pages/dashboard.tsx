@@ -15,7 +15,7 @@ interface Alerta {
   tipo: 'map' | 'shield' | 'home';
 }
 
-export default function dashboard() {
+export default function Dashboard() {
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
   const [searchTerm, setSearchTerm] = useState('');
   const [periodo, setPeriodo] = useState('Esta Semana');

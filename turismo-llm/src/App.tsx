@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/login'
+import Register from './pages/register'
 // import PontosTuristicos from './pages/PontosTuristicos';
 
 
@@ -11,6 +12,9 @@ export default function App() {
       <Routes>
         {/* Rota pública de login - não exibe o Header */}
         <Route path="/login" element={<Login />} />
+
+        {/* Rota de registro */}
+        <Route path='/register' element={<Register/>}/>
 
         {/* Rotas administrativas - O Dashboard renderiza seu próprio Header */}
         <Route path="/" element={<Dashboard />} />
