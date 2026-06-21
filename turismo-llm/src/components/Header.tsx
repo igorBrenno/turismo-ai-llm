@@ -14,13 +14,13 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
   const [menuPerfilAberto, setMenuPerfilAberto] = useState(false);
   
   const navigate = useNavigate();
-  const { profile, loading } = useProfile(); // Puxa os dados reais do banco de dados
+  const { profile, loading } = useProfile(); // Puxa os dados reais do banco ou fallback
 
   const handleLogout = async () => {
     setMenuPerfilAberto(false);
     // Remove a sessão do usuário no Supabase
     await supabase.auth.signOut();
-    navigate('/login');
+    navigate('/');
   };
 
   const handleProfile = () => {
@@ -44,7 +44,7 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
         {/* Links de Navegação Funcionais */}
         <nav className="flex items-center gap-2 text-sm font-medium">
           <NavLink 
-            to="/" 
+            to="/dashboard" 
             className={({ isActive }) => 
               `px-4 py-2 rounded-md font-semibold transition-colors ${
                 isActive 
@@ -113,9 +113,6 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
             <p className="text-sm font-semibold text-[#1b1c1d]">
               {loading ? 'Carregando...' : (profile?.name || 'Novo Usuário')}
             </p>
-            <p className="text-xs text-[#74777d]">
-              {loading ? '...' : (profile?.name || 'Nível Administrativo')}
-            </p>
           </div>
           
           <button 
@@ -139,12 +136,10 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
               ></div>
               
               <div className="absolute right-0 top-12 mt-2 w-48 bg-white border border-[#E2E8F0] rounded-md shadow-lg py-1 z-20 text-left">
+                {/* Informações visíveis apenas em telas menores (Mobile) */}
                 <div className="px-4 py-2 border-b border-[#E2E8F0] sm:hidden">
                   <p className="text-sm font-semibold text-[#1b1c1d]">
                     {loading ? 'Carregando...' : (profile?.name || 'Novo Usuário')}
-                  </p>
-                  <p className="text-xs text-[#74777d]">
-                    {loading ? '...' : (profile?.name || 'Nível Administrativo')}
                   </p>
                 </div>
 

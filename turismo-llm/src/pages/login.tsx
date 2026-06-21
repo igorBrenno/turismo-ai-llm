@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Monitor, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Shield, Monitor, Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+// Importação do seu cliente do Supabase
+import { supabase } from '../supabaseClient';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -8,18 +10,32 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(''); // Estado para exibir erros na tela
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage(''); // Reseta erros anteriores
 
-    // Simulando delay de autenticação corporativa
-    setTimeout(() => {
+    try {
+      // Executa a autenticação real no Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (error) throw error;
+
+      console.log('Login efetuado com sucesso no Supabase:', data.user);
+      
+      // Redireciona para a Dashboard após o login bem-sucedido
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Erro ao fazer login:', error);
+      setErrorMessage(error.message || 'Erro ao autenticar. Verifique suas credenciais.');
+    } finally {
       setIsLoading(false);
-      console.log('Login efetuado com sucesso:', { email, rememberMe });
-      // Redireciona para o Dashboard após o login bem-sucedido
-      navigate('/');
-    }, 1500);
+    }
   };
 
   return (
@@ -79,6 +95,14 @@ export default function Login() {
                 </p>
               </div>
             </div>
+
+            {/* Caixa de Mensagem de Erro (Se houver) */}
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-lg flex items-start gap-2.5 animate-in fade-in duration-200">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
             {/* Formulário */}
             <form onSubmit={handleSubmit} className="space-y-6">

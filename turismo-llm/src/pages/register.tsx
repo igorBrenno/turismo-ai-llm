@@ -67,22 +67,47 @@ export default function Register() {
     setSuccessMessage('');
 
     try {
+      // 1. LIMITADOR PRÉVIO: Verificação manual na tabela pública por segurança adicional
+      // Consultamos se já existe um usuário com o mesmo e-mail (caso salve na tabela pública)
+      // ou se o e-mail gera conflito na API interna.
+      const { data: existingUsers, error: searchError } = await supabase
+        .from('user')
+        .select('id')
+        .eq('email', email.trim().toLowerCase());
+
+      // Se a tabela pública contiver o e-mail e encontrar registro, bloqueia imediatamente sem chamar o Auth
+      if (!searchError && existingUsers && existingUsers.length > 0) {
+        throw new Error('Este e-mail institucional já está cadastrado em nosso sistema.');
+      }
+
+      // 2. DISPARO DO SIGNUP NO SUPABASE AUTH
       const { data, error } = await supabase.auth.signUp({
-        email: email,
+        email: email.trim(),
         password: password,
         options: {
-          // Passando o nome completo para os metadados. 
-          // Mantive o campo role como string vazia para evitar quebras se o seu trigger esperar o parâmetro.
+          // Enviando os metadados. O Trigger no banco usará isso para criar a linha na tabela pública
           data: {
             full_name: fullName,
+            email: email.trim().toLowerCase(), // Incluído nos metadados para o trigger ler e salvar na tabela pública
             role: '', 
           }
         }
       });
 
-      if (error) throw error;
+      // 3. TRATAMENTO DO LIMITADOR DO SUPABASE AUTH (Garante dupla checagem caso passem da primeira barreira)
+      if (error) {
+        if (error.message.includes('already registered') || error.status === 422) {
+          throw new Error('Este e-mail institucional já está cadastrado em nosso sistema.');
+        }
+        throw error;
+      }
 
-      setSuccessMessage('Conta criada com sucesso! Enviamos um e-mail de confirmação.');
+      // Se o usuário foi criado com sucesso mas o Supabase exige confirmação de e-mail por link:
+      if (data.user && data.session === null) {
+        setSuccessMessage('Conta pré-registrada! Verifique sua caixa de entrada para confirmar o e-mail.');
+      } else {
+        setSuccessMessage('Conta criada com sucesso! Redirecionando...');
+      }
       
       // Limpa os campos após o sucesso
       setFullName('');
@@ -91,7 +116,7 @@ export default function Register() {
 
       // Aguarda 3.5 segundos para o usuário ler a mensagem de sucesso e redireciona
       setTimeout(() => {
-        navigate('/login');
+        navigate('/');
       }, 3500);
 
     } catch (error: any) {
@@ -109,7 +134,6 @@ export default function Register() {
         
         {/* Lado Esquerdo: Identidade Visual */}
         <section className="hidden md:flex md:w-1/2 bg-[#041627] relative p-8 flex-col justify-between overflow-hidden">
-          
           <div className="z-10">
             <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">TouristWatch AI</h1>
             <p className="text-sm text-white/70 max-w-xs leading-relaxed">

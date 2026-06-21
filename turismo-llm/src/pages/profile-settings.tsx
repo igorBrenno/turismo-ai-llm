@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header';
 import { supabase } from '../supabaseClient';
 import { useProfile } from '../hooks/useProfile';
@@ -8,42 +8,36 @@ import {
   Lock, 
   Shield, 
   Info, 
-  HelpCircle, 
   Loader2, 
   Check 
 } from 'lucide-react';
 
 export default function ProfileSettings() {
   const { profile, loading, refreshProfile } = useProfile();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados de Informações Pessoais
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [department, setDepartment] = useState('Operations Management');
 
-  // Estados de Segurança
-  const [currentPassword, setCurrentPassword] = useState('');
+  // Estados de Segurança (Alteração de Senha)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Estados de Preferências do Sistema
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [realTimeAlerts, setRealTimeAlerts] = useState(true);
-
-  // Estados do Botão de Submit (Micro-interações de Feedback)
+  // Estados de Carregamento específicos
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
-  // 1. Sincroniza os dados do perfil assim que carregarem do banco
+  // Sincroniza os dados do perfil assim que carregarem do banco
   useEffect(() => {
     if (profile) {
       if (profile.name) setFullName(profile.name);
-      // Caso sua tabela guarde outras preferências futuramente, pode alimentá-las aqui:
     }
   }, [profile]);
 
-  // 2. Busca o e-mail real do usuário autenticado para preencher o campo desabilitado
+  // Busca o e-mail real do usuário autenticado
   useEffect(() => {
     async function fetchUserEmail() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -54,7 +48,61 @@ export default function ProfileSettings() {
     fetchUserEmail();
   }, []);
 
-  // 3. Salva as alterações reais no banco de dados
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Lógica de Upload da Foto de Perfil
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor, selecione um arquivo de imagem válido.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 2MB.');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado.');
+
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('user')
+        .update({ avatar_url: publicUrl })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      await refreshProfile();
+      alert('Foto de perfil atualizada com sucesso!');
+
+    } catch (error: any) {
+      alert(`Erro no upload da foto: ${error.message}`);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  // Salva Alterações de Texto E a Nova Senha se preenchida
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -63,19 +111,34 @@ export default function ProfileSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // Realiza o UPDATE na tabela pública 'user' usando a coluna correta 'name_user'
-      const { error } = await supabase
+      // 1. Atualiza o nome na tabela pública 'user'
+      const { error: profileError } = await supabase
         .from('user')
         .update({ name: fullName })
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      // Ativa a animação de sucesso original da sua interface
+      // 2. Se o usuário tentou mudar a senha, executa a atualização de Auth
+      if (newPassword || confirmPassword) {
+        if (newPassword !== confirmPassword) {
+          throw new Error('A nova senha e a confirmação não coincidem.');
+        }
+
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: newPassword
+        });
+
+        if (passwordError) throw passwordError;
+        
+        // Limpa os campos de senha após o sucesso
+        setNewPassword('');
+        setConfirmPassword('');
+        alert('Senha updated com sucesso!');
+      }
+
       setIsSubmitting(false);
       setIsSaved(true);
-
-      // Força o hook e o Header a buscarem o nome atualizado do banco
       refreshProfile();
 
       setTimeout(() => {
@@ -101,7 +164,6 @@ export default function ProfileSettings() {
     <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] font-sans antialiased selection:bg-[#d2e4fb]">
       <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
 
-      {/* Main Content Container */}
       <main className="max-w-4xl mx-auto py-8 px-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-[#1b1c1d] mb-1 tracking-tight">Profile Settings</h1>
@@ -110,10 +172,27 @@ export default function ProfileSettings() {
 
         <form className="space-y-6" onSubmit={handleSubmit}>
           
-          {/* 1. Header Section: Profile Picture */}
+          {/* 1. Imagem de Perfil */}
           <section className="bg-white p-6 rounded-xl border border-[#c4c6cd] flex flex-col md:flex-row items-center gap-6 shadow-sm">
-            <div className="relative group cursor-pointer">
-              <div className="w-32 h-32 rounded-full border-4 border-[#efedef] overflow-hidden bg-[#e4e2e3]">
+            <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept="image/*" 
+                className="hidden" 
+              />
+              
+              <div className="w-32 h-32 rounded-full border-4 border-[#efedef] overflow-hidden bg-[#e4e2e3] relative flex items-center justify-center">
+                {isUploadingPhoto ? (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center z-10">
+                    <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                )}
                 <img 
                   className="w-full h-full object-cover" 
                   alt="Avatar do usuário" 
@@ -129,22 +208,18 @@ export default function ProfileSettings() {
             </div>
             <div className="text-center md:text-left space-y-1">
               <h2 className="text-xl font-bold text-[#1b1c1d]">{fullName || 'Novo Usuário'}</h2>
-              <p className="text-xs text-[#44474c] uppercase tracking-wider font-semibold">Site Manager | Sector 04</p>
-              <div className="pt-2 flex flex-wrap justify-center md:justify-start gap-2">
-                <span className="px-3 py-1 bg-[#d0e1fb] text-[#54647a] text-[11px] font-medium rounded-lg">Verified Account</span>
-                <span className="px-3 py-1 bg-[#feddb5] text-[#281802] text-[11px] font-medium rounded-lg">Admin Access</span>
-              </div>
+              <p className="text-xs text-[#44474c]">Clique na imagem para alterar sua foto de perfil.</p>
             </div>
           </section>
 
-          {/* 2. Personal Information */}
+          {/* 2. Informações Pessoais */}
           <section className="bg-white p-6 rounded-xl border border-[#c4c6cd] shadow-sm">
             <div className="flex items-center gap-2 mb-6 border-b border-[#c4c6cd] pb-3">
               <User className="w-5 h-5 text-[#041627]" />
               <h3 className="text-xs font-bold text-[#1b1c1d] uppercase tracking-widest">Personal Information</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <label className="text-xs font-semibold text-[#44474c]" htmlFor="fullName">Full Name</label>
                 <input 
                   id="fullName"
@@ -155,7 +230,7 @@ export default function ProfileSettings() {
                   required
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <label className="text-xs font-semibold text-[#44474c]" htmlFor="email">Email Address</label>
                 <div className="relative">
                   <input 
@@ -168,48 +243,23 @@ export default function ProfileSettings() {
                   <Lock className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 text-[#44474c]" />
                 </div>
               </div>
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold text-[#44474c]" htmlFor="department">Department</label>
-                <select 
-                  id="department"
-                  className="w-full bg-[#f5f3f4] border border-[#74777d] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] cursor-pointer transition-all"
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                >
-                  <option value="Operations Management">Operations Management</option>
-                  <option value="Site Surveillance">Site Surveillance</option>
-                  <option value="Compliance Monitoring">Compliance Monitoring</option>
-                  <option value="Administrative Portal">Administrative Portal</option>
-                </select>
-              </div>
             </div>
           </section>
 
-          {/* 3. Security / Change Password */}
+          {/* 3. Segurança (Nova Senha) */}
           <section className="bg-white p-6 rounded-xl border border-[#c4c6cd] shadow-sm">
             <div className="flex items-center gap-2 mb-6 border-b border-[#c4c6cd] pb-3">
               <Shield className="w-5 h-5 text-[#041627]" />
               <h3 className="text-xs font-bold text-[#1b1c1d] uppercase tracking-widest">Security & Authentication</h3>
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#44474c]" htmlFor="currentPassword">Current Password</label>
-                  <input 
-                    id="currentPassword"
-                    className="w-full bg-[#f5f3f4] border border-[#74777d] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] transition-all" 
-                    placeholder="••••••••" 
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                  />
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-[#44474c]" htmlFor="newPassword">New Password</label>
                   <input 
                     id="newPassword"
                     className="w-full bg-[#f5f3f4] border border-[#74777d] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] transition-all" 
-                    placeholder="••••••••" 
+                    placeholder="Deixe em branco para não alterar" 
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -220,7 +270,7 @@ export default function ProfileSettings() {
                   <input 
                     id="confirmPassword"
                     className="w-full bg-[#f5f3f4] border border-[#74777d] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] transition-all" 
-                    placeholder="••••••••" 
+                    placeholder="Confirme sua nova senha" 
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -230,55 +280,13 @@ export default function ProfileSettings() {
               <div className="bg-[#efedef] p-4 rounded-lg flex items-start gap-3">
                 <Info className="w-5 h-5 text-[#54647a] shrink-0 mt-0.5" />
                 <p className="text-xs leading-normal text-[#54647a]">
-                  Password must be at least 12 characters long and include a mix of uppercase letters, numbers, and special symbols for enterprise compliance.
+                  Preencha os campos acima caso deseje atualizar sua credencial de acesso ao sistema.
                 </p>
               </div>
             </div>
           </section>
 
-          {/* 4. Preferences */}
-          <section className="bg-white p-6 rounded-xl border border-[#c4c6cd] shadow-sm">
-            <div className="flex items-center gap-2 mb-6 border-b border-[#c4c6cd] pb-3">
-              <HelpCircle className="w-5 h-5 text-[#041627]" />
-              <h3 className="text-xs font-bold text-[#1b1c1d] uppercase tracking-widest">System Preferences</h3>
-            </div>
-            <div className="space-y-6">
-              {/* Toggle 1 */}
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-[#1b1c1d]">Email Notifications</p>
-                  <p className="text-xs text-[#44474c]">Receive daily reports and site health summaries via email.</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer" 
-                    checked={emailNotifications}
-                    onChange={(e) => setEmailNotifications(e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-[#c4c6cd] rounded-full peer peer-focus:outline-none peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#041627]"></div>
-                </label>
-              </div>
-              {/* Toggle 2 */}
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-[#1b1c1d]">Real-time Compliance Alerts</p>
-                  <p className="text-xs text-[#44474c]">Push notifications for urgent crowd density and safety violations.</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer" 
-                    checked={realTimeAlerts}
-                    onChange={(e) => setRealTimeAlerts(e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-[#c4c6cd] rounded-full peer peer-focus:outline-none peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#041627]"></div>
-                </label>
-              </div>
-            </div>
-          </section>
-
-          {/* 5. Actions */}
+          {/* 4. Ações */}
           <div className="flex items-center justify-end gap-4 pt-4">
             <button 
               type="button" 
@@ -309,20 +317,8 @@ export default function ProfileSettings() {
             </button>
           </div>
         </form>
-
-        {/* Danger Zone Footer */}
-        <div className="mt-8 p-6 bg-[#ffdad6]/20 border border-[#ba1a1a]/20 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h4 className="text-sm font-bold text-[#ba1a1a]">Deactivate Account</h4>
-            <p className="text-xs text-[#44474c]">Permanently remove your access to the TouristWatch AI platform.</p>
-          </div>
-          <button type="button" className="text-[#ba1a1a] text-xs font-bold hover:underline self-start sm:self-center">
-            Request Deletion
-          </button>
-        </div>
       </main>
 
-      {/* Corporate Footnote */}
       <footer className="mt-12 border-t border-[#c4c6cd] py-6 bg-[#f5f3f4]">
         <div className="max-w-4xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-[#44474c]">
           <p>© 2026 TouristWatch AI • Professional Compliance Systems</p>
