@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { TrendingUp, Search, Bell, HelpCircle, LogOut, User } from 'lucide-react';
+import { useProfile } from '../hooks/useProfile';
+import { supabase } from '../supabaseClient';
 
 interface HeaderProps {
   searchTerm: string;
@@ -12,15 +14,16 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
   const [menuPerfilAberto, setMenuPerfilAberto] = useState(false);
   
   const navigate = useNavigate();
+  const { profile, loading } = useProfile(); // Puxa os dados reais do banco de dados
 
-  const handleLogout = () => {
-    // Se tiver lógica de limpar localStorage/tokens, insira aqui.
+  const handleLogout = async () => {
     setMenuPerfilAberto(false);
+    // Remove a sessão do usuário no Supabase
+    await supabase.auth.signOut();
     navigate('/login');
   };
 
   const handleProfile = () => {
-    // Se tiver lógica de limpar localStorage/tokens, insira aqui.
     setMenuPerfilAberto(false);
     navigate('/profile');
   };
@@ -76,18 +79,6 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
           >
             Análise Detalhada
           </NavLink>
-          <NavLink 
-            to="/configuracoes" 
-            className={({ isActive }) => 
-              `px-4 py-2 rounded-md font-semibold transition-colors ${
-                isActive 
-                  ? 'bg-[#d2e4fb] text-[#0b1d2d]' 
-                  : 'text-[#505f76] hover:text-[#041627]'
-              }`
-            }
-          >
-            Configurações
-          </NavLink>
         </nav>
       </div>
 
@@ -119,8 +110,12 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
         {/* Bloco do Perfil com Dropdown */}
         <div className="flex items-center gap-3 border-l border-[#E2E8F0] pl-6 relative">
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold text-[#1b1c1d]">Admin Manager</p>
-            <p className="text-xs text-[#74777d]">Level 1</p>
+            <p className="text-sm font-semibold text-[#1b1c1d]">
+              {loading ? 'Carregando...' : (profile?.name || 'Novo Usuário')}
+            </p>
+            <p className="text-xs text-[#74777d]">
+              {loading ? '...' : (profile?.name || 'Nível Administrativo')}
+            </p>
           </div>
           
           <button 
@@ -128,7 +123,7 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
             className="focus:outline-none hover:opacity-80 transition-opacity relative z-20"
           >
             <img 
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
+              src={profile?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} 
               alt="Avatar" 
               className="w-9 h-9 rounded-full object-cover border border-[#E2E8F0]"
             />
@@ -145,8 +140,12 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
               
               <div className="absolute right-0 top-12 mt-2 w-48 bg-white border border-[#E2E8F0] rounded-md shadow-lg py-1 z-20 text-left">
                 <div className="px-4 py-2 border-b border-[#E2E8F0] sm:hidden">
-                  <p className="text-sm font-semibold text-[#1b1c1d]">Admin Manager</p>
-                  <p className="text-xs text-[#74777d]">Level 1</p>
+                  <p className="text-sm font-semibold text-[#1b1c1d]">
+                    {loading ? 'Carregando...' : (profile?.name || 'Novo Usuário')}
+                  </p>
+                  <p className="text-xs text-[#74777d]">
+                    {loading ? '...' : (profile?.name || 'Nível Administrativo')}
+                  </p>
                 </div>
 
                 <button 

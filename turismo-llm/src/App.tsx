@@ -11,7 +11,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Rota pública de login - não exibe o Header */}
-        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Login />} />
 
         {/* Rota de registro */}
         <Route path='/register' element={<Register/>}/>
@@ -19,7 +19,7 @@ export default function App() {
         <Route path='/profile' element={<Profile/>}/>
 
         {/* Rotas administrativas - O Dashboard renderiza seu próprio Header */}
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         
         {/* <Route path="/pontos-turisticos" element={<PontosTuristicos />} /> */}
         

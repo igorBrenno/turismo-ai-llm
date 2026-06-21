@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import Header from '../components/Header'
+import React, { useState, useEffect } from 'react';
+import Header from '../components/Header';
+import { supabase } from '../supabaseClient';
+import { useProfile } from '../hooks/useProfile';
 import { 
   User, 
   Camera, 
@@ -12,8 +14,11 @@ import {
 } from 'lucide-react';
 
 export default function ProfileSettings() {
+  const { profile, loading, refreshProfile } = useProfile();
+
   // Estados de Informações Pessoais
-  const [fullName, setFullName] = useState('Gestor Operacional');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [department, setDepartment] = useState('Operations Management');
 
@@ -30,30 +35,71 @@ export default function ProfileSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 1. Sincroniza os dados do perfil assim que carregarem do banco
+  useEffect(() => {
+    if (profile) {
+      if (profile.name) setFullName(profile.name);
+      // Caso sua tabela guarde outras preferências futuramente, pode alimentá-las aqui:
+    }
+  }, [profile]);
+
+  // 2. Busca o e-mail real do usuário autenticado para preencher o campo desabilitado
+  useEffect(() => {
+    async function fetchUserEmail() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setEmail(user.email);
+      }
+    }
+    fetchUserEmail();
+  }, []);
+
+  // 3. Salva as alterações reais no banco de dados
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulação da API de salvamento conforme a lógica original do script
-    setTimeout(() => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado.');
+
+      // Realiza o UPDATE na tabela pública 'user' usando a coluna correta 'name_user'
+      const { error } = await supabase
+        .from('user')
+        .update({ name: fullName })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Ativa a animação de sucesso original da sua interface
       setIsSubmitting(false);
       setIsSaved(true);
 
+      // Força o hook e o Header a buscarem o nome atualizado do banco
+      refreshProfile();
+
       setTimeout(() => {
         setIsSaved(false);
-        console.log('Alterações salvas com sucesso:', {
-          fullName,
-          department,
-          emailNotifications,
-          realTimeAlerts
-        });
-      }, 2000);
-    }, 1200);
+      }, 2500);
+
+    } catch (error: any) {
+      setIsSubmitting(false);
+      alert(`Erro ao salvar alterações: ${error.message}`);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#fbf9fa] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 text-[#041627] animate-spin" />
+        <p className="text-sm font-medium text-[#44474c]">Loading your profile settings...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] font-sans antialiased selection:bg-[#d2e4fb]">
-    <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+      <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
 
       {/* Main Content Container */}
       <main className="max-w-4xl mx-auto py-8 px-6">
@@ -70,8 +116,8 @@ export default function ProfileSettings() {
               <div className="w-32 h-32 rounded-full border-4 border-[#efedef] overflow-hidden bg-[#e4e2e3]">
                 <img 
                   className="w-full h-full object-cover" 
-                  alt="Professional headshot of operative" 
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVbzFG0TTFhNAR9BatAdFppCcd6OsGz-PKbY2a5GCi7C18xb98MXYseW93Nyb4_rSawmNiGcW0U5Y2kzMSniWgNnwKlgtyTFk_iVAxsvODhmOrZ-Z-hu80WehoYE3XhFAH1Uj-Op3jeC4RYCU6SPumz8aKmg7NVa9yhtkeLO2lpqyja_JsDwy0YCInEXjHNCeA6yU6zgdV69hdOZfQ9HkZ0erRiUmL6IQ51g3sJMnXaBg06p2vPmtYj8wCE_BKKoeDWg53WuB-L7M"
+                  alt="Avatar do usuário" 
+                  src={profile?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"}
                 />
               </div>
               <button 
@@ -82,7 +128,7 @@ export default function ProfileSettings() {
               </button>
             </div>
             <div className="text-center md:text-left space-y-1">
-              <h2 className="text-xl font-bold text-[#1b1c1d]">Gestor Operacional</h2>
+              <h2 className="text-xl font-bold text-[#1b1c1d]">{fullName || 'Novo Usuário'}</h2>
               <p className="text-xs text-[#44474c] uppercase tracking-wider font-semibold">Site Manager | Sector 04</p>
               <div className="pt-2 flex flex-wrap justify-center md:justify-start gap-2">
                 <span className="px-3 py-1 bg-[#d0e1fb] text-[#54647a] text-[11px] font-medium rounded-lg">Verified Account</span>
@@ -106,6 +152,7 @@ export default function ProfileSettings() {
                   type="text" 
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  required
                 />
               </div>
               <div className="space-y-1.5">
@@ -116,7 +163,7 @@ export default function ProfileSettings() {
                     className="w-full bg-[#e9e7e9] border border-[#c4c6cd] rounded-lg px-4 py-2.5 text-sm text-[#44474c] cursor-not-allowed select-none" 
                     disabled 
                     type="email" 
-                    value="g.operacional@touristwatch.ai"
+                    value={email || 'Carregando e-mail...'}
                   />
                   <Lock className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 text-[#44474c]" />
                 </div>
@@ -142,7 +189,7 @@ export default function ProfileSettings() {
           <section className="bg-white p-6 rounded-xl border border-[#c4c6cd] shadow-sm">
             <div className="flex items-center gap-2 mb-6 border-b border-[#c4c6cd] pb-3">
               <Shield className="w-5 h-5 text-[#041627]" />
-              <h3 className="text-xs font-bold text-[#1b1c1d] uppercase tracking-widest">Security &amp; Authentication</h3>
+              <h3 className="text-xs font-bold text-[#1b1c1d] uppercase tracking-widest">Security & Authentication</h3>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -277,7 +324,7 @@ export default function ProfileSettings() {
 
       {/* Corporate Footnote */}
       <footer className="mt-12 border-t border-[#c4c6cd] py-6 bg-[#f5f3f4]">
-        <div className="max-w-4xl mx-auto px-gutter flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-[#44474c]">
+        <div className="max-w-4xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-[#44474c]">
           <p>© 2026 TouristWatch AI • Professional Compliance Systems</p>
           <div className="flex gap-6">
             <a className="hover:text-[#041627] transition-colors" href="#docs">Documentation</a>

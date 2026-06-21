@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Badge, Lock, Eye, EyeOff, BarChart2, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, Mail, Lock, Eye, EyeOff, BarChart2, Loader2 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 export default function Register() {
+  const navigate = useNavigate();
+
   // Estados do formulário
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
+
+  // Estados de requisição e feedback
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Estados do validador de senha
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -49,16 +57,48 @@ export default function Register() {
     }
   }, [password]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Envio dos dados para a Autenticação do Supabase
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeTerms) return;
 
-    console.log('Dados enviados para a API:', {
-      fullName,
-      email,
-      role,
-      password,
-    });
+    setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          // Passando o nome completo para os metadados. 
+          // Mantive o campo role como string vazia para evitar quebras se o seu trigger esperar o parâmetro.
+          data: {
+            full_name: fullName,
+            role: '', 
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      setSuccessMessage('Conta criada com sucesso! Enviamos um e-mail de confirmação.');
+      
+      // Limpa os campos após o sucesso
+      setFullName('');
+      setEmail('');
+      setPassword('');
+
+      // Aguarda 3.5 segundos para o usuário ler a mensagem de sucesso e redireciona
+      setTimeout(() => {
+        navigate('/login');
+      }, 3500);
+
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Ocorreu um erro ao registrar sua conta.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -128,6 +168,19 @@ export default function Register() {
               <p className="text-sm text-[#44474c]">Registre-se para acessar o painel administrativo.</p>
             </div>
 
+            {/* Banners de Alerta */}
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-lg">
+                {errorMessage}
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium rounded-lg">
+                {successMessage}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               
               {/* Nome Completo */}
@@ -139,15 +192,16 @@ export default function Register() {
                     id="fullName"
                     type="text" 
                     required
+                    disabled={isLoading}
                     placeholder="Ex: João Silva" 
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full pl-11 pr-4 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] transition-all"
+                    className="w-full pl-11 pr-4 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] transition-all disabled:opacity-60"
                   />
                 </div>
               </div>
 
-              {/* E-mail Institutional */}
+              {/* E-mail Institucional */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[#041627] tracking-wide" htmlFor="email">E-mail Institucional</label>
                 <div className="relative">
@@ -156,33 +210,12 @@ export default function Register() {
                     id="email"
                     type="email" 
                     required
+                    disabled={isLoading}
                     placeholder="nome@instituicao.gov.br" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-11 pr-4 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] transition-all"
+                    className="w-full pl-11 pr-4 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] transition-all disabled:opacity-60"
                   />
-                </div>
-              </div>
-
-              {/* Cargo / Dropdown */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#041627] tracking-wide" htmlFor="role">Departamento / Cargo</label>
-                <div className="relative">
-                  <Badge className="absolute left-3 top-1/2 -translate-y-1/2 text-[#74777d] w-5 h-5 pointer-events-none" />
-                  <select 
-                    id="role"
-                    required
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full pl-11 pr-10 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] appearance-none cursor-pointer transition-all"
-                  >
-                    <option value="" disabled>Selecione seu cargo</option>
-                    <option value="ranger">Fiscal / Guarda-Parque</option>
-                    <option value="manager">Gestor de Localidade</option>
-                    <option value="analyst">Analista de Dados</option>
-                    <option value="admin">Administrador Público</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] w-4 h-4 pointer-events-none" />
                 </div>
               </div>
 
@@ -195,15 +228,17 @@ export default function Register() {
                     id="password"
                     type={showPassword ? 'text' : 'password'} 
                     required
+                    disabled={isLoading}
                     placeholder="No mínimo 8 caracteres" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-11 pr-10 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] transition-all"
+                    className="w-full pl-11 pr-10 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] transition-all disabled:opacity-60"
                   />
                   <button 
                     type="button"
+                    disabled={isLoading}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] hover:text-[#041627] transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] hover:text-[#041627] transition-colors disabled:opacity-40"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -230,9 +265,10 @@ export default function Register() {
                   id="terms" 
                   type="checkbox"
                   required
+                  disabled={isLoading}
                   checked={agreeTerms}
                   onChange={(e) => setAgreeTerms(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 text-[#041627] border-[#c4c6cd] rounded focus:ring-[#041627] cursor-pointer"
+                  className="mt-0.5 w-4 h-4 text-[#041627] border-[#c4c6cd] rounded focus:ring-[#041627] cursor-pointer disabled:opacity-60"
                 />
                 <label htmlFor="terms" className="text-xs text-[#44474c] leading-normal select-none">
                   Eu concordo com os <a className="text-[#041627] font-bold hover:underline" href="#terms">Termos de Serviço</a> e as <a className="text-[#041627] font-bold hover:underline" href="#privacy">Políticas de Privacidade</a> do TouristWatch AI.
@@ -242,9 +278,17 @@ export default function Register() {
               {/* CTA Criar Conta */}
               <button 
                 type="submit"
-                className="w-full bg-[#041627] text-white py-2.5 px-4 rounded-lg text-xs font-semibold hover:bg-[#112336] transition-all active:scale-[0.99] shadow-sm pt-3"
+                disabled={isLoading || !agreeTerms}
+                className="w-full bg-[#041627] text-white py-2.5 px-4 rounded-lg text-xs font-semibold hover:bg-[#112336] transition-all active:scale-[0.99] shadow-sm pt-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
               >
-                Criar Conta
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Criando Conta...
+                  </>
+                ) : (
+                  'Criar Conta'
+                )}
               </button>
             </form>
 
@@ -252,7 +296,7 @@ export default function Register() {
             <div className="text-center pt-2">
               <p className="text-sm text-[#44474c]">
                 Já possui uma conta institucional?{' '}
-                <a className="text-[#041627] font-bold hover:underline" href="/login">
+                <a className="text-[#041627] font-bold hover:underline" href="/">
                   Fazer Login
                 </a>
               </p>
