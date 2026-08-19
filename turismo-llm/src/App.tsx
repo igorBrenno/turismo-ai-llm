@@ -3,6 +3,7 @@ import Dashboard from './pages/dashboard';
 import Login from './pages/login'
 import Register from './pages/register'
 import Profile from './pages/profile-settings'
+import Pesquisa from './pages/city-search'
 // import PontosTuristicos from './pages/PontosTuristicos';
 
 
@@ -20,6 +21,8 @@ export default function App() {
 
         {/* Rotas administrativas - O Dashboard renderiza seu próprio Header */}
         <Route path="/dashboard" element={<Dashboard />} />
+
+        <Route path='/pesquisa' element={<Pesquisa/>}/>
         
         {/* <Route path="/pontos-turisticos" element={<PontosTuristicos />} /> */}
         

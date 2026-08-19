@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header';
-import { supabase } from '../supabaseClient';
 import { useProfile } from '../hooks/useProfile';
 import { 
   User, 
@@ -12,6 +11,12 @@ import {
   Check 
 } from 'lucide-react';
 
+// Importações do Firebase
+import { updatePassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../firebaseConfig';
+
 export default function ProfileSettings() {
   const { profile, loading, refreshProfile } = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,6 +25,7 @@ export default function ProfileSettings() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Estados de Segurança (Alteração de Senha)
   const [newPassword, setNewPassword] = useState('');
@@ -32,27 +38,38 @@ export default function ProfileSettings() {
 
   // Sincroniza os dados do perfil assim que carregarem do banco
   useEffect(() => {
-    if (profile) {
-      if (profile.name) setFullName(profile.name);
+    if (profile?.name) {
+      setFullName(profile.name);
+    }
+    if (profile?.avatar_url) {
+      setAvatarUrl(profile.avatar_url);
     }
   }, [profile]);
 
-  // Busca o e-mail real do usuário autenticado
+  // Busca o e-mail real do usuário autenticado no Firebase Auth
   useEffect(() => {
-    async function fetchUserEmail() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        setEmail(user.email);
-      }
+    const user = auth.currentUser;
+    if (user?.email) {
+      setEmail(user.email);
     }
-    fetchUserEmail();
   }, []);
+
+  // Resolvedor dinâmico da URL do Avatar para renderização
+  const getAvatarUrl = () => {
+    const rawUrl = avatarUrl || profile?.avatar_url;
+
+    if (!rawUrl) {
+      return "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80";
+    }
+
+    return rawUrl;
+  };
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
 
-  // Lógica de Upload da Foto de Perfil
+  // Lógica de Upload da Foto de Perfil no Firebase Storage
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -69,36 +86,41 @@ export default function ProfileSettings() {
     setIsUploadingPhoto(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) throw new Error('Usuário não autenticado.');
 
       const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+      const storageRef = ref(storage, `avatars/${user.uid}/${Date.now()}.${fileExt}`);
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      // 1. Upload do arquivo para o Firebase Storage
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
 
-      if (uploadError) throw uploadError;
+      // 2. Atualiza o perfil nativo do Firebase Auth
+      await updateProfile(user, { photoURL: downloadURL });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      // 3. Salva/Atualiza a referência da foto no documento do Firestore
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, {
+        user_id: user.uid,
+        avatar_url: downloadURL,
+        name: fullName || profile?.name || 'Novo Usuário',
+        email: user.email,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
 
-      const { error: updateError } = await supabase
-        .from('user')
-        .update({ avatar_url: publicUrl })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      await refreshProfile();
+      // 4. Atualiza os estados locais
+      setAvatarUrl(downloadURL);
+      if (refreshProfile) await refreshProfile();
       alert('Foto de perfil atualizada com sucesso!');
 
     } catch (error: any) {
       alert(`Erro no upload da foto: ${error.message}`);
     } finally {
       setIsUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -108,38 +130,38 @@ export default function ProfileSettings() {
     setIsSubmitting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) throw new Error('Usuário não autenticado.');
 
-      // 1. Atualiza o nome na tabela pública 'user'
-      const { error: profileError } = await supabase
-        .from('user')
-        .update({ name: fullName })
-        .eq('user_id', user.id);
+      // 1. Atualiza o displayName no Auth nativo do Firebase
+      await updateProfile(user, { displayName: fullName });
 
-      if (profileError) throw profileError;
+      // 2. Atualiza/Cria dados no Firestore
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, {
+        user_id: user.uid,
+        name: fullName,
+        email: user.email,
+        avatar_url: avatarUrl || profile?.avatar_url || null,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
 
-      // 2. Se o usuário tentou mudar a senha, executa a atualização de Auth
+      // 3. Se o usuário tentou mudar a senha, executa a atualização no Firebase Auth
       if (newPassword || confirmPassword) {
         if (newPassword !== confirmPassword) {
           throw new Error('A nova senha e a confirmação não coincidem.');
         }
 
-        const { error: passwordError } = await supabase.auth.updateUser({
-          password: newPassword
-        });
-
-        if (passwordError) throw passwordError;
+        await updatePassword(user, newPassword);
         
-        // Limpa os campos de senha após o sucesso
         setNewPassword('');
         setConfirmPassword('');
-        alert('Senha updated com sucesso!');
+        alert('Senha atualizada com sucesso!');
       }
 
       setIsSubmitting(false);
       setIsSaved(true);
-      refreshProfile();
+      if (refreshProfile) await refreshProfile();
 
       setTimeout(() => {
         setIsSaved(false);
@@ -147,7 +169,11 @@ export default function ProfileSettings() {
 
     } catch (error: any) {
       setIsSubmitting(false);
-      alert(`Erro ao salvar alterações: ${error.message}`);
+      if (error.code === 'auth/requires-recent-login') {
+        alert('Por razões de segurança, para alterar a senha é necessário ter feito login recentemente. Refaça o login e tente novamente.');
+      } else {
+        alert(`Erro ao salvar alterações: ${error.message}`);
+      }
     }
   };
 
@@ -196,7 +222,7 @@ export default function ProfileSettings() {
                 <img 
                   className="w-full h-full object-cover" 
                   alt="Avatar do usuário" 
-                  src={profile?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"}
+                  src={getAvatarUrl()}
                 />
               </div>
               <button 
@@ -207,7 +233,7 @@ export default function ProfileSettings() {
               </button>
             </div>
             <div className="text-center md:text-left space-y-1">
-              <h2 className="text-xl font-bold text-[#1b1c1d]">{fullName || 'Novo Usuário'}</h2>
+              <h2 className="text-xl font-bold text-[#1b1c1d]">{fullName || profile?.name || 'Novo Usuário'}</h2>
               <p className="text-xs text-[#44474c]">Clique na imagem para alterar sua foto de perfil.</p>
             </div>
           </section>

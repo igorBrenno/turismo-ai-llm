@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock, Eye, EyeOff, BarChart2, Loader2 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+
+// Importações do Firebase Auth e Firestore
+import { 
+  createUserWithEmailAndPassword, 
+  updateProfile, 
+  sendEmailVerification 
+} from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig'; // Ajuste o caminho do seu arquivo firebaseConfig
 
 export default function Register() {
   const navigate = useNavigate();
@@ -57,7 +65,7 @@ export default function Register() {
     }
   }, [password]);
 
-  // Envio dos dados para a Autenticação do Supabase
+  // Envio dos dados para a Autenticação e Banco do Firebase
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeTerms) return;
@@ -66,61 +74,61 @@ export default function Register() {
     setErrorMessage('');
     setSuccessMessage('');
 
+    const formattedEmail = email.trim().toLowerCase();
+
     try {
-      // 1. LIMITADOR PRÉVIO: Verificação manual na tabela pública por segurança adicional
-      // Consultamos se já existe um usuário com o mesmo e-mail (caso salve na tabela pública)
-      // ou se o e-mail gera conflito na API interna.
-      const { data: existingUsers, error: searchError } = await supabase
-        .from('user')
-        .select('id')
-        .eq('email', email.trim().toLowerCase());
+      // 1. Criar a conta no Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        formattedEmail, 
+        password
+      );
+      const user = userCredential.user;
 
-      // Se a tabela pública contiver o e-mail e encontrar registro, bloqueia imediatamente sem chamar o Auth
-      if (!searchError && existingUsers && existingUsers.length > 0) {
-        throw new Error('Este e-mail institucional já está cadastrado em nosso sistema.');
-      }
-
-      // 2. DISPARO DO SIGNUP NO SUPABASE AUTH
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-        options: {
-          // Enviando os metadados. O Trigger no banco usará isso para criar a linha na tabela pública
-          data: {
-            full_name: fullName,
-            email: email.trim().toLowerCase(), // Incluído nos metadados para o trigger ler e salvar na tabela pública
-            role: '', 
-          }
-        }
+      // 2. Atualizar o nome exibido (displayName) no perfil do Auth
+      await updateProfile(user, {
+        displayName: fullName
       });
 
-      // 3. TRATAMENTO DO LIMITADOR DO SUPABASE AUTH (Garante dupla checagem caso passem da primeira barreira)
-      if (error) {
-        if (error.message.includes('already registered') || error.status === 422) {
-          throw new Error('Este e-mail institucional já está cadastrado em nosso sistema.');
-        }
-        throw error;
-      }
+      // 3. Salvar os dados adicionais no Firestore (coleção 'users')
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        full_name: fullName,
+        email: formattedEmail,
+        role: '',
+        createdAt: new Date().toISOString()
+      });
 
-      // Se o usuário foi criado com sucesso mas o Supabase exige confirmação de e-mail por link:
-      if (data.user && data.session === null) {
-        setSuccessMessage('Conta pré-registrada! Verifique sua caixa de entrada para confirmar o e-mail.');
-      } else {
-        setSuccessMessage('Conta criada com sucesso! Redirecionando...');
-      }
-      
-      // Limpa os campos após o sucesso
+      // 4. (Opcional) Enviar e-mail de verificação de conta
+      await sendEmailVerification(user);
+
+      setSuccessMessage('Conta criada com sucesso! Enviamos um e-mail de verificação para a sua caixa de entrada.');
+
+      // Limpa os campos
       setFullName('');
       setEmail('');
       setPassword('');
 
-      // Aguarda 3.5 segundos para o usuário ler a mensagem de sucesso e redireciona
+      // Redireciona para o login ou painel após 3.5s
       setTimeout(() => {
         navigate('/');
       }, 3500);
 
     } catch (error: any) {
-      setErrorMessage(error.message || 'Ocorreu um erro ao registrar sua conta.');
+      // Tratamento de erros comuns do Firebase Auth
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          setErrorMessage('Este e-mail institucional já está cadastrado em nosso sistema.');
+          break;
+        case 'auth/invalid-email':
+          setErrorMessage('O e-mail informado é inválido.');
+          break;
+        case 'auth/weak-password':
+          setErrorMessage('A senha escolhida é muito fraca. Use pelo menos 6 caracteres.');
+          break;
+        default:
+          setErrorMessage(error.message || 'Ocorreu um erro ao registrar sua conta.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -173,7 +181,7 @@ export default function Register() {
             </blockquote>
           </div>
 
-          {/* Imagem de Fundo Misturada (Textura) */}
+          {/* Imagem de Fundo Misturada */}
           <div className="absolute inset-0 z-0 opacity-20 mix-blend-overlay">
             <img 
               className="w-full h-full object-cover" 
@@ -303,7 +311,7 @@ export default function Register() {
               <button 
                 type="submit"
                 disabled={isLoading || !agreeTerms}
-                className="w-full bg-[#041627] text-white py-2.5 px-4 rounded-lg text-xs font-semibold hover:bg-[#112336] transition-all active:scale-[0.99] shadow-sm pt-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+                className="w-full bg-[#041627] text-white py-2.5 px-4 rounded-lg text-xs font-semibold hover:bg-[#112336] transition-all active:scale-[0.99] shadow-sm pt-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
               >
                 {isLoading ? (
                   <>
@@ -320,9 +328,9 @@ export default function Register() {
             <div className="text-center pt-2">
               <p className="text-sm text-[#44474c]">
                 Já possui uma conta institucional?{' '}
-                <a className="text-[#041627] font-bold hover:underline" href="/">
+                <Link className="text-[#041627] font-bold hover:underline" to="/">
                   Fazer Login
-                </a>
+                </Link>
               </p>
             </div>
 

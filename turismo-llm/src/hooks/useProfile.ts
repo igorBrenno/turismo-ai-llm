@@ -1,66 +1,62 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
-import type { UserProfile } from '../types/database.types';
+import { useState, useEffect, useCallback } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig';
+
+export interface UserProfile {
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+  role?: string;
+}
 
 export function useProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  async function fetchProfile() {
-    try {
-      setLoading(true);
-      
-      // 1. Busca os dados de autenticação da sessão atual
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        console.log('Nenhum usuário autenticado encontrado.');
-        setProfile(null);
-        return;
-      }
-
-      // LOG DE DIAGNÓSTICO: Abra o console do navegador (F12) e veja o que aparece aqui!
-      console.log('Metadados do usuário logado:', user.user_metadata);
-
-      // 2. Varre os metadados procurando por qualquer variação do nome cadastrado
-      const nomeEncontrado = 
-        user.user_metadata?.full_name || 
-        user.user_metadata?.name || 
-        user.user_metadata?.nome ||
-        user.email?.split('@')[0]; // Se tudo falhar, usa o início do e-mail
-
-      // 3. Tenta buscar da tabela pública 'user'
-      const { data, error: dbError } = await supabase
-        .from('user')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (dbError) {
-        // Se a tabela estiver vazia (como vimos no painel), monta o fallback com o nome dos metadados
-        setProfile({
-          id: user.id,
-          user_id: user.id,
-          name: nomeEncontrado, 
-          avatar_url: user.user_metadata?.avatar_url || null,
-        } as unknown as UserProfile);
-      } else {
-        // Se o registro existir no banco mas a coluna 'name' estiver vazia
-        if (data && !data.name) {
-          data.name = nomeEncontrado;
-        }
-        setProfile(data as UserProfile);
-      }
-    } catch (err) {
-      console.error('Erro geral no hook useProfile:', err);
-    } finally {
-      setLoading(false);
+  const refreshProfile = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      setProfile(null);
+      return;
     }
-  }
 
-  useEffect(() => {
-    fetchProfile();
+    // Fallback inicial com dados do Auth nativo
+    const fallbackProfile: UserProfile = {
+      name: user.displayName || 'Usuário',
+      email: user.email || '',
+      avatar_url: user.photoURL || undefined,
+    };
+
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const docSnap = await getDoc(userDocRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setProfile({
+          name: data.name || data.full_name || user.displayName || 'Usuário',
+          email: data.email || user.email || '',
+          avatar_url: data.avatar_url || user.photoURL || undefined,
+          role: data.role || ''
+        });
+      } else {
+        setProfile(fallbackProfile);
+      }
+    } catch (error) {
+      console.warn("Firestore indisponível ou offline. Usando dados do Auth:", error);
+      // Em caso de erro (offline/permissão), usa os dados do próprio Firebase Auth sem travar o app
+      setProfile(fallbackProfile);
+    }
   }, []);
 
-  return { profile, loading, refreshProfile: fetchProfile };
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, () => {
+      refreshProfile().finally(() => setLoading(false));
+    });
+
+    return () => unsubscribe();
+  }, [refreshProfile]);
+
+  return { profile, loading, refreshProfile };
 }

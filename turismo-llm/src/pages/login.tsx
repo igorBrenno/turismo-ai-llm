@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Monitor, Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
-// Importação do seu cliente do Supabase
-import { supabase } from '../supabaseClient';
+// Importações de autenticação do Firebase
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { auth } from '../firebaseConfig'; // Importa a instância do auth configurada
 
 export default function Login() {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(''); // Estado para exibir erros na tela
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,21 +19,31 @@ export default function Login() {
     setErrorMessage(''); // Reseta erros anteriores
 
     try {
-      // Executa a autenticação real no Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
+      // Configura a persistência baseada no checkbox "Lembrar-me"
+      const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+      await setPersistence(auth, persistenceType);
 
-      if (error) throw error;
+      // Executa a autenticação no Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-      console.log('Login efetuado com sucesso no Supabase:', data.user);
+      console.log('Login efetuado com sucesso no Firebase:', userCredential.user);
       
       // Redireciona para a Dashboard após o login bem-sucedido
       navigate('/dashboard');
     } catch (error: any) {
       console.error('Erro ao fazer login:', error);
-      setErrorMessage(error.message || 'Erro ao autenticar. Verifique suas credenciais.');
+      
+      // Tratamento amigável para mensagens de erro comuns do Firebase
+      let message = 'Erro ao autenticar. Verifique suas credenciais.';
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = 'E-mail ou senha incorretos.';
+      } else if (error.code === 'auth/too-many-requests') {
+        message = 'Muitas tentativas malsucedidas. Tente novamente mais tarde.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'O formato do e-mail inserido é inválido.';
+      }
+
+      setErrorMessage(message);
     } finally {
       setIsLoading(false);
     }

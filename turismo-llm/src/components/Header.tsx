@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { TrendingUp, Search, Bell, HelpCircle, LogOut, User } from 'lucide-react';
+import { signOut } from 'firebase/auth'; // Import do método de logout do Firebase
+import { auth } from '../firebaseConfig'; // Substitui a importação do supabase
 import { useProfile } from '../hooks/useProfile';
-import { supabase } from '../supabaseClient';
 
 interface HeaderProps {
   searchTerm: string;
@@ -17,10 +18,14 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
   const { profile, loading } = useProfile(); // Puxa os dados reais do banco ou fallback
 
   const handleLogout = async () => {
-    setMenuPerfilAberto(false);
-    // Remove a sessão do usuário no Supabase
-    await supabase.auth.signOut();
-    navigate('/');
+    try {
+      setMenuPerfilAberto(false);
+      // Remove a sessão do usuário no Firebase
+      await signOut(auth);
+      navigate('/');
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error);
+    }
   };
 
   const handleProfile = () => {
@@ -37,7 +42,7 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
             <TrendingUp className="w-5 h-5" />
           </div>
           <span className="font-bold text-lg tracking-tight leading-none">
-            TouristWatch<br/><span className="text-[#505f76] text-sm">AI</span>
+            Turismo-llm<br/><span className="text-[#505f76] text-sm">AI</span>
           </span>
         </div>
 
@@ -56,7 +61,7 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
             Dashboard
           </NavLink>
           <NavLink 
-            to="/pontos-turisticos" 
+            to="/pesquisa" 
             className={({ isActive }) => 
               `px-4 py-2 rounded-md font-semibold transition-colors ${
                 isActive 
@@ -65,19 +70,7 @@ export default function Header({ searchTerm, setSearchTerm }: HeaderProps) {
               }`
             }
           >
-            Pontos Turísticos
-          </NavLink>
-          <NavLink 
-            to="/analise-detalhada" 
-            className={({ isActive }) => 
-              `px-4 py-2 rounded-md font-semibold transition-colors ${
-                isActive 
-                  ? 'bg-[#d2e4fb] text-[#0b1d2d]' 
-                  : 'text-[#505f76] hover:text-[#041627]'
-              }`
-            }
-          >
-            Análise Detalhada
+            Pesquisa
           </NavLink>
         </nav>
       </div>
