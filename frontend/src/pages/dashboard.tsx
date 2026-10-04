@@ -49,18 +49,13 @@ export default function Dashboard() {
       <main className="max-w-[1400px] mx-auto p-6 flex flex-col gap-6">
         {/* 2. METRIC CARDS ROW */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white border border-[#E2E8F0] rounded-lg p-6 flex flex-col justify-between shadow-sm">
-            <div className="flex justify-between items-start">
-              < TotalCommentaries />
-              <div className="p-2 text-[#74777d]">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mt-4 text-xs text-[#74777d]">
-              <span className="text-[#128049] font-semibold flex items-center gap-0.5">↗ +12%</span>
-              <span>Últimos 30 dias de processamento AI</span>
-            </div>
-          </div>
+          
+            
+          < TotalCommentaries />
+              
+            
+            
+          
           
           <div className="bg-white border border-[#E2E8F0] rounded-lg p-6 flex flex-col justify-between shadow-sm">
             <div className="flex justify-between items-start">
