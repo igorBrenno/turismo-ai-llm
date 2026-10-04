@@ -10,7 +10,7 @@ import {
   Quote, 
   Loader2 
 } from 'lucide-react';
-import type { AIAlert, AIAnalysis } from '../models/Ai';
+import type {AIAnalysis } from '../models/Ai';
 import type {Review } from '../models/Spot'
 import SpotsMap from '../components/Map';
 

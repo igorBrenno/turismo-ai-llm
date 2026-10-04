@@ -4,6 +4,7 @@ import {
   MapPin, Shield, Home, CheckCircle2, Trash2 
 } from 'lucide-react';
 import type { Alerta } from '../models/Visual';
+import TotalCommentaries from '../components/totalComentaries';
 
 export default function Dashboard() {
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
@@ -37,6 +38,8 @@ export default function Dashboard() {
     alerta.problema.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  
+
   return (
     <div className="bg-[#F8FAFC] min-h-screen font-sans text-[#1b1c1d]">
       
@@ -48,10 +51,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white border border-[#E2E8F0] rounded-lg p-6 flex flex-col justify-between shadow-sm">
             <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-semibold text-[#505f76] tracking-wider uppercase">Total de Comentários</p>
-                <h3 className="text-[36px] font-bold text-[#041627] mt-2 tracking-tight">12.4k</h3>
-              </div>
+              < TotalCommentaries />
               <div className="p-2 text-[#74777d]">
                 <MessageSquare className="w-5 h-5" />
               </div>
@@ -61,7 +61,7 @@ export default function Dashboard() {
               <span>Últimos 30 dias de processamento AI</span>
             </div>
           </div>
-
+          
           <div className="bg-white border border-[#E2E8F0] rounded-lg p-6 flex flex-col justify-between shadow-sm">
             <div className="flex justify-between items-start">
               <div>
