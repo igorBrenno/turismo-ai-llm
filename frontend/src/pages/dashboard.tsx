@@ -1,58 +1,138 @@
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { 
-   AlertTriangle, MoreVertical, 
+  AlertTriangle, MoreVertical, 
   MapPin, Shield, Home, CheckCircle2, Trash2, Clock, 
   RefreshCw, Radio, Sliders, Maximize,  
-   BarChart2, Check, Hourglass, Users, Flame, 
-  ArrowRight, ClipboardList, Filter, Accessibility
+  BarChart2, Check, Hourglass, Users, Flame, 
+  ArrowRight, ClipboardList, Filter, Accessibility, Loader2
 } from 'lucide-react';
 
+// Imports do Material-UI para o botão do satélite
+import Button from '@mui/material/Button';
+import SatelliteAltIcon from '@mui/icons-material/SatelliteAlt';
+import { useAuth } from '../contexts/AuthContext';
 import type { Alerta } from '../models/Visual';
-// Importações presumidas baseadas no seu código
 import TotalCommentaries from '../components/totalComentaries';
 import Infractions from '../components/Infractions';
-
 import type { TouristSpot } from '../models/Spot';
 import DashboardSpotsMap from '../components/DashboardMap';
+
+// Importações do Firebase para escutar em tempo real
+import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+
 export default function Dashboard() {
+  const auth = useAuth();
+  const currentUser = auth.currentUser;
+
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
   const [searchTerm] = useState('');
-  
   const [periodo, setPeriodo] = useState('Esta Semana');
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
-  const [spots, setSpots] = useState<TouristSpot[]>([])
+  const [spots, setSpots] = useState<TouristSpot[]>([]);
   
-  const [alertas, setAlertas] = useState<Alerta[]>([
-    { id: 1, localidade: 'Praia do Sol - Norte', problema: 'Acúmulo de resíduos sólidos em área protegida', severidade: 'Alto', horario: 'Há 14 min', tipo: 'map' },
-    { id: 2, localidade: 'Trilha do Mirante', problema: 'Sinalização de segurança vandalizada', severidade: 'Médio', horario: 'Há 45 min', tipo: 'shield' },
-    { id: 3, localidade: 'Museu Histórico', problema: 'Obstrução em rampa de acessibilidade lateral', severidade: 'Baixo', horario: 'Há 1 hora', tipo: 'home' }
-  ]);
+  // Novos estados para o fluxo assíncrono com o Python e Firebase
+  const [analysisStatus, setAnalysisStatus] = useState<string>('idle');
+  const [dbAlertas, setDbAlertas] = useState<any[]>([]);
+
+  // Função centralizada para disparar a análise no Proxy (Backend Python)
+  const triggerBackendAnalysis = useCallback(async (forceRefresh = false) => {
+    const city = currentUser?.cityChoiceForAnalysis;
+    if (!city || !city.placeId) return;
+
+    try {
+      const spotIds = spots.map(s => s.id).filter(Boolean);
+
+      const response = await fetch('http://localhost:8000/api/analyze-city', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          place_id: city.placeId,
+          city_name: city.name,
+          spot_ids: spotIds,
+          force_refresh: forceRefresh
+        })
+      });
+      const data = await response.json();
+      console.log("Status do Proxy:", data);
+    } catch (error) {
+      console.error("Erro ao disparar análise no backend:", error);
+    }
+  }, [currentUser, spots]);
+
+  // Efeito para carregar dados do Firebase e escutar mudanças em tempo real
+  useEffect(() => {
+    const city = currentUser?.cityChoiceForAnalysis;
+    if (!city || !city.placeId) return;
+
+    // 1. Chama o proxy automaticamente se já tivermos spots na tela
+    if (spots.length > 0) {
+      triggerBackendAnalysis(false);
+    }
+
+    // 2. Ouvinte em tempo real (onSnapshot) do status da cidade (Deep Analysis)
+    const statusRef = doc(db, 'deep_analysis_status', city.placeId);
+    const unsubscribeStatus = onSnapshot(statusRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setAnalysisStatus(data.analysis_status || 'idle'); // 'processing', 'idle', 'error'
+      }
+    });
+
+    // 3. Ouvinte em tempo real dos Alertas gerados pela IA
+    const alertsRef = collection(db, 'alerts');
+    const unsubscribeAlerts = onSnapshot(alertsRef, (snapshot) => {
+      const alertsList: any[] = [];
+      snapshot.forEach((docSnap) => {
+        const alertData = docSnap.data();
+        if (alertData.place_id === city.placeId) {
+          alertsList.push({ 
+            id: docSnap.id, 
+            localidade: alertData.spot_name || city.name,
+            problema: alertData.justificativa || alertData.tipo_perigo,
+            severidade: alertData.tipo_perigo === 'CRIME_GRAVE' ? 'Alto' : 'Médio',
+            horario: 'Recente',
+            tipo: 'map',
+            ...alertData 
+          });
+        }
+      });
+      if (alertsList.length > 0) {
+        setDbAlertas(alertsList);
+      }
+    });
+
+    return () => {
+      unsubscribeStatus();
+      unsubscribeAlerts();
+    };
+  }, [currentUser, spots, triggerBackendAnalysis]);
+
+  // Usa os alertas do banco se houverem, senão mantém um array vazio
+  const alertasAtivos = dbAlertas.length > 0 ? dbAlertas : [];
+
+  const handleDeletarAlerta = (id: any) => {
+    setDbAlertas(dbAlertas.filter(alerta => alerta.id !== id));
+    setActiveMenuId(null);
+  };
+
+  const handleResolverAlerta = (id: any) => {
+    alert(`Alerta #${id} marcado como resolvido!`);
+    setDbAlertas(dbAlertas.filter(alerta => alerta.id !== id));
+    setActiveMenuId(null);
+  };
+
+  const alertasFiltrados = alertasAtivos.filter(alerta => 
+    (alerta.localidade || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (alerta.problema || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const dadosGrafico = periodo === 'Esta Semana' 
     ? { seguranca: { qtd: 68, p: '47.8%' }, higiene: { qtd: 42, p: '29.5%' }, acesso: { qtd: 32, p: '22.7%' } }
     : { seguranca: { qtd: 245, p: '52.1%' }, higiene: { qtd: 198, p: '31.2%' }, acesso: { qtd: 110, p: '16.7%' } };
 
-  const handleDeletarAlerta = (id: number) => {
-    setAlertas(alertas.filter(alerta => alerta.id !== id));
-    setActiveMenuId(null);
-  };
-
-  const handleResolverAlerta = (id: number) => {
-    alert(`Alerta #${id} marcado como resolvido!`);
-    setAlertas(alertas.filter(alerta => alerta.id !== id));
-    setActiveMenuId(null);
-  };
-
-  const alertasFiltrados = alertas.filter(alerta => 
-    alerta.localidade.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    alerta.problema.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  
-
   return (
     <div className="bg-[#F8FAFC] text-[#1b1c1d] min-h-screen flex flex-col antialiased selection:bg-[#041627] selection:text-white font-sans">
-      {/* Estilos injetados para animações globais (Radar) e Scrollbar */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes pulse-ring {
           0% { transform: scale(0.95); opacity: 0.8; }
@@ -68,6 +148,20 @@ export default function Dashboard() {
 
       <main className="flex-grow max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-10 sm:space-y-14 pb-12">
         
+        {/* BANNER DE PROCESSAMENTO DA IA */}
+        {analysisStatus === 'processing' && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-900 px-5 py-3 rounded-xl flex items-center justify-between gap-3 shadow-sm animate-pulse">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-600 shrink-0" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide">Varredura Profunda em Andamento</p>
+                <p className="text-xs text-blue-700 mt-0.5">A Inteligência Artificial e o Apify estão analisando os comentários desta região em segundo plano...</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full">Processando</span>
+          </div>
+        )}
+
         {/* SECTION: INTRO & OVERVIEW KPI METRICS */}
         <section className="space-y-6 scroll-mt-24" id="metricas">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -85,7 +179,7 @@ export default function Dashboard() {
               <span className="flex items-center text-xs text-[#505f76] bg-white border border-[#E2E8F0] px-3 py-1.5 rounded-lg shadow-sm font-medium">
                 <Clock className="w-3.5 h-3.5 text-slate-400 mr-1.5" /> Última sincronização: <strong className="text-[#041627] ml-1">Hoje, 14:38</strong>
               </span>
-              <button className="p-2 bg-white border border-[#E2E8F0] rounded-lg text-slate-600 hover:text-[#041627] hover:bg-slate-50 transition-colors shadow-sm" title="Atualizar dados">
+              <button onClick={() => triggerBackendAnalysis(true)} className="p-2 bg-white border border-[#E2E8F0] rounded-lg text-slate-600 hover:text-[#041627] hover:bg-slate-50 transition-colors shadow-sm" title="Atualizar dados">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -108,7 +202,7 @@ export default function Dashboard() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-red-50 text-[#ba1a1a]">
                   <Flame className="w-3 h-3" /> Atenção Imediata
                 </span>
-                <span className="text-[#74777d]">3 críticas</span>
+                <span className="text-[#74777d]">{alertasAtivos.length} críticas</span>
               </div>
             </div>
 
@@ -179,25 +273,53 @@ export default function Dashboard() {
           </div>
 
           <div className="relative w-full h-[500px] sm:h-[560px] rounded-xl overflow-hidden border border-[#CBD5E1] bg-[#F4F6F8] shadow-inner select-none">
-            {/* SVG Base do Mapa */}
             <DashboardSpotsMap
-            spots={spots} 
-            onSpotClick={() => {}} 
-            height='100%'
-            setSpots={setSpots}
+              spots={spots} 
+              onSpotClick={() => {}} 
+              height='100%'
+              setSpots={setSpots}
             />
+          </div>
 
-           
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-4 w-full bg-white rounded-xl">
+            <div className="flex items-center gap-3 text-xs text-[#505f76]">
+              <span className="text-[11px] text-[#74777d]">
+                Região ativa: <strong>{currentUser?.cityChoiceForAnalysis?.name || 'Nenhuma cidade selecionada'}</strong>
+              </span>
+            </div>
 
-            
-            
-
-           
-
-            {/* Controles do Mapa */}
-            
-
-            
+            <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end">
+              <Button
+                variant="contained"
+                disableElevation
+                onClick={() => triggerBackendAnalysis(true)}
+                disabled={analysisStatus === 'processing'}
+                startIcon={<SatelliteAltIcon sx={{ fontSize: '1rem !important' }} />}
+                sx={{
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  borderRadius: '0.5rem',
+                  padding: '6px 16px',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: '#041627',
+                  },
+                  '&:active': {
+                    transform: 'scale(0.95)',
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#94a3b8',
+                    color: '#f1f5f9'
+                  }
+                }}
+              >
+                {analysisStatus === 'processing' ? 'Varrendo com IA...' : `Varrer ${ currentUser?.cityChoiceForAnalysis?.name || '' }`}
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -348,14 +470,14 @@ export default function Dashboard() {
                 </select>
               </div>
               <span className="text-xs font-medium text-[#74777d] bg-[#F1F5F9] px-3 py-1.5 rounded-lg border border-[#E2E8F0]">
-                Exibindo <strong>{alertasFiltrados.length}</strong> de <strong>{alertas.length}</strong> alertas ativos
+                Exibindo <strong>{alertasFiltrados.length}</strong> de <strong>{alertasAtivos.length}</strong> alertas ativos
               </span>
             </div>
           </div>
 
           <div className="overflow-x-auto custom-scrollbar">
             {alertasFiltrados.length === 0 ? (
-              <div className="p-12 text-center text-[#74777d]">Nenhum alerta encontrado.</div>
+              <div className="p-12 text-center text-[#74777d]">Nenhum alerta encontrado na base de dados para esta região.</div>
             ) : (
               <table className="w-full text-left border-collapse min-w-[760px]">
                 <thead>
@@ -372,22 +494,18 @@ export default function Dashboard() {
                     <tr key={alerta.id} className="hover:bg-[#F8FAFC] transition-colors group">
                       <td className="py-4 px-6 font-semibold flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          alerta.tipo === 'map' ? 'bg-red-50 text-[#ba1a1a]' : 
-                          alerta.tipo === 'shield' ? 'bg-amber-50 text-[#d97706]' : 'bg-blue-50 text-[#2563eb]'
+                          alerta.severidade === 'Alto' ? 'bg-red-50 text-[#ba1a1a]' : 'bg-amber-50 text-[#d97706]'
                         }`}>
-                          {alerta.tipo === 'map' && <MapPin className="w-4 h-4" />}
-                          {alerta.tipo === 'shield' && <Shield className="w-4 h-4" />}
-                          {alerta.tipo === 'home' && <Home className="w-4 h-4" />}
+                          <MapPin className="w-4 h-4" />
                         </div>
                         <span className="text-sm font-bold text-[#041627]">{alerta.localidade}</span>
                       </td>
                       <td className="py-4 px-6 text-[#1b1c1d] font-medium">{alerta.problema}</td>
                       <td className="py-4 px-6 text-center">
                         <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full uppercase inline-flex items-center gap-1 ${
-                          alerta.severidade === 'Alto' ? 'bg-[#ffdad6] text-[#93000a]' :
-                          alerta.severidade === 'Médio' ? 'bg-[#fef3c7] text-[#92400e]' : 'bg-[#e0f2fe] text-[#0369a1]'
+                          alerta.severidade === 'Alto' ? 'bg-[#ffdad6] text-[#93000a]' : 'bg-[#fef3c7] text-[#92400e]'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${alerta.severidade === 'Alto' ? 'bg-[#ba1a1a]' : alerta.severidade === 'Médio' ? 'bg-[#d97706]' : 'bg-[#2563eb]'}`}></span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${alerta.severidade === 'Alto' ? 'bg-[#ba1a1a]' : 'bg-[#d97706]'}`}></span>
                           {alerta.severidade}
                         </span>
                       </td>

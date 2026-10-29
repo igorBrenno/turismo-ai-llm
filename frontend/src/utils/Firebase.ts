@@ -37,6 +37,7 @@ export const userAuthChange = async (firebaseUser : any, setCurrentUser : any) =
             name : cityChoice.name,
             lat : cityChoice.lat,
             lng : cityChoice.lng,
+            placeId : cityChoice.placeId,
         } : null;
         setCurrentUser({
             uid: firebaseUser.uid,

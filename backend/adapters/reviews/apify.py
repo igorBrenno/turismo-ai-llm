@@ -7,9 +7,9 @@ class ApifyReviewsAdapter(ReviewProviderAdapter):
     def __init__(self, token_apify : str):
         self.client = ApifyClient(token_apify)
         
-    def fetch_reviews(self, place_id : str, limit : int):
+    def fetch_reviews(self, place_id : List[str], limit : int):
         run_input = {
-            "placeIds" : [place_id],
+            "placeIds" : place_id,
             "maxReviews" : limit,
             "language" : "pt-BR",
             "personalData" : False

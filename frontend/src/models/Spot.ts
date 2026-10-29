@@ -7,7 +7,8 @@ export interface TouristSpot {
   image_url?: string;
   rating?: number;
   lat : number;
-  lng : number
+  lng : number;
+  
 }
 export interface Review {
   author: string;
