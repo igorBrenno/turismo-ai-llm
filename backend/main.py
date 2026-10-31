@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from openai import OpenAI
-from repositories.firebase import FirebaseReviewRepository
-from repositories.base import ReviewRepositorie
+from repositories.firebase import FirebaseReviewRepository, FirebaseAlertRepository
+from repositories.base import ReviewRepositorie, AlertRepository
 import os
 import json
 from dotenv import load_dotenv
@@ -14,6 +14,9 @@ from adapters.reviews.apify import ApifyReviewsAdapter
 from adapters.reviews.base import ReviewProviderAdapter
 from adapters.ai.base import AIAnalizerProviderAdapter
 from adapters.ai.open_ai import OpenAIAdapter
+from config.auth import get_current_uid
+from models.alert import RunAlertRulesRequest
+from services.alert_runner import executar_regras_de_alerta
 from adapters.google_places.google_places import GooglePlacesAdapter
 
 # Services (Importe o serviço que criamos)
@@ -40,6 +43,12 @@ app.add_middleware(
 
 def get_review_repositorie() -> ReviewRepositorie:
     return FirebaseReviewRepository()
+
+
+def get_alert_repository() -> AlertRepository:
+    return FirebaseAlertRepository()
+
+
 
 def get_open_ai_adapter() -> AIAnalizerProviderAdapter:
     open_ai_token = os.getenv("OPENAI_API_KEY")
@@ -149,3 +158,19 @@ async def get_spot_reviews(
     except Exception as e:
         print(f"Erro no processamento: {e}")
         raise HTTPException(status_code=500, detail="Erro ao processar comentários e IA.")
+
+
+@app.post("/api/alert-rules/run", status_code=202)
+async def run_alert_rules(
+    request : RunAlertRulesRequest,
+    background_tasks : BackgroundTasks,
+    uid : str = Depends(get_current_uid),
+    repo : AlertRepository = Depends(get_alert_repository),
+    review_adapter : ReviewProviderAdapter = Depends(get_reviews_adapter),
+    ai_analyzer_adapter : AIAnalizerProviderAdapter = Depends(get_open_ai_adapter),
+    ):
+    # Percorre os comentários dos pontos da cidade e verifica as regras de alerta do secretário.
+    # Responde na hora com o id da execução; o processamento segue em segundo plano.
+    run_id = await repo.create_run(uid=uid, total_locais=len(request.spots))
+    background_tasks.add_task(executar_regras_de_alerta, run_id, uid, request, repo, review_adapter, ai_analyzer_adapter)
+    return {"run_id": run_id}

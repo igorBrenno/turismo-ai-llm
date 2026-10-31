@@ -19,8 +19,8 @@ class CityDeepAnalysis:
                 return {"status": "processing", "message": "A cidade já está sendo analisada pela LLM."}
             last_analyzed = city_data.get("last_analyzed")
             if last_analyzed and not force_refresh:
-                now = datetime.now(timezone)
-                diff_hours = (now - last_analyzed).total_second() / 3600
+                now = datetime.now(timezone.utc)
+                diff_hours = (now - last_analyzed).total_seconds() / 3600
                 if diff_hours < 24:
                     return {"status": "cached", "message": "Análise profunda recente já disponível."}
                 
@@ -44,7 +44,7 @@ class CityDeepAnalysis:
             analise_ia = self.llm.analizar_reviews(reviews)
             
             # 3. Salva os dados consolidados (score, resumo) no cache da cidade
-            await self.db.save_data(place_id, {
+            await self.db.save_data_deep_analysis(place_id, {
                 "city_name": city_name,
                 "perigo_score": analise_ia["perigo_score"],
                 "score_absoluto": analise_ia["score_absoluto"],
@@ -53,9 +53,15 @@ class CityDeepAnalysis:
                 "ultima_atualizacao": firestore.SERVER_TIMESTAMP
             })
             
+            
+            
             # 4. Salva os alertas (crimes, golpes) separadamente
             if analise_ia["alertas"]:
-                await self.db.save_alerts(place_id, analise_ia["alertas"])
+                await self.db.save_alerts_deep_analysis(place_id, analise_ia["alertas"])
+            
+            
+            await self.db.save_spots_and_reviews(place_id, reviews)
+            
             
             # 5. Libera o banco mudando para idle (Isso vai avisar o React!)
             await self.db.update_deep_analysis(place_id, "idle")
@@ -63,5 +69,5 @@ class CityDeepAnalysis:
             
         except Exception as e:
             print(f"[ERRO] Falha no processamento de {place_id}: {e}")
-            await self.db.update_deep_analysis_status(place_id, "error")
+            await self.db.update_deep_analysis(place_id, "error")
     

@@ -16,6 +16,7 @@ import TotalCommentaries from '../components/totalComentaries';
 import Infractions from '../components/Infractions';
 import type { TouristSpot } from '../models/Spot';
 import DashboardSpotsMap from '../components/DashboardMap';
+import CustomAlertsPanel from '../components/CustomAlertsPanel';
 
 // Importações do Firebase para escutar em tempo real
 import { doc, onSnapshot, collection } from 'firebase/firestore';
@@ -322,6 +323,8 @@ export default function Dashboard() {
             </div>
           </div>
         </section>
+
+        <CustomAlertsPanel spots={spots} />
 
         {/* SECTION: ANALYTICS & CRITICAL ZONES */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 scroll-mt-24" id="analitico">
