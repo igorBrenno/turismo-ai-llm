@@ -72,6 +72,18 @@ export default function Header() {
           >
             Pesquisa
           </NavLink>
+          <NavLink 
+            to="/alertas" 
+            className={({ isActive }) => 
+              `px-4 py-2 rounded-md font-semibold transition-colors ${
+                isActive 
+                  ? 'bg-[#d2e4fb] text-[#0b1d2d]' 
+                  : 'text-[#505f76] hover:text-[#041627]'
+              }`
+            }
+          >
+            Alertas
+          </NavLink>
         </nav>
       </div>
 
