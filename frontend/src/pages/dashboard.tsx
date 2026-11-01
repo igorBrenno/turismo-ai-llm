@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Alerta } from '../models/Visual';
 import TotalCommentaries from '../components/totalComentaries';
 import Infractions from '../components/Infractions';
+import UnderRisk from '../components/UnderRisk';
 import type { TouristSpot } from '../models/Spot';
 import DashboardSpotsMap from '../components/DashboardMap';
 import CustomAlertsPanel from '../components/CustomAlertsPanel';
@@ -42,7 +43,14 @@ export default function Dashboard() {
     if (!city || !city.placeId) return;
 
     try {
-      const spotIds = spots.map(s => s.id).filter(Boolean);
+      const spotsData = spots
+      .filter(s => s.id)
+      .map(s => ({
+        place_id: s.id,
+        name: s.name || "Local",
+        lat: s.lat || s.lat, 
+        lng: s.lng || s.lng
+      }));
 
       const response = await fetch('http://localhost:8000/api/analyze-city', {
         method: 'POST',
@@ -50,7 +58,7 @@ export default function Dashboard() {
         body: JSON.stringify({
           place_id: city.placeId,
           city_name: city.name,
-          spot_ids: spotIds,
+          spot_info: spotsData,
           force_refresh: forceRefresh
         })
       });
@@ -211,7 +219,12 @@ export default function Dashboard() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Pontos Sob Risco</p>
-                  <h3 className="text-3xl sm:text-4xl font-extrabold text-[#041627] mt-2 tracking-tight">8</h3>
+                  
+                  
+                  <UnderRisk />
+
+
+
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center transition-transform group-hover:scale-105">
                   <Shield className="w-6 h-6" />

@@ -8,7 +8,7 @@ class CityDeepAnalysis:
         self.db = db_repo
         self.apify = apify_adapter
         self.google = google_adapter
-        self. llm =  llm_adapter
+        self.llm =  llm_adapter
 
     async def request_deep_analysis(self, place_id: str, force_refresh: bool = False):
         city_data = await self.db.get_deep_analysis(place_id)
@@ -28,7 +28,7 @@ class CityDeepAnalysis:
         await self.db.update_deep_analysis(place_id, "processing")
         return {"status": "started", "message": "Varredura profunda iniciada no background."}
         
-    async def execute_heavy_analysis(self, place_id : str, city_name : str, spot_ids : list):
+    async def execute_heavy_analysis(self, place_id : str, city_name : str, spot_ids : list, spot_info : dict[str, any]):
         try:
             # 1. Puxa os dados do Apify (usando a lista de spots recebida do Frontend)
             reviews = self.apify.fetch_reviews(spot_ids, limit=30)
@@ -60,7 +60,8 @@ class CityDeepAnalysis:
                 await self.db.save_alerts_deep_analysis(place_id, analise_ia["alertas"])
             
             
-            await self.db.save_spots_and_reviews(place_id, reviews)
+            
+            await self.db.save_spots_and_reviews(place_id, reviews, spot_info)
             
             
             # 5. Libera o banco mudando para idle (Isso vai avisar o React!)

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from openai import OpenAI
 from repositories.firebase import FirebaseReviewRepository, FirebaseAlertRepository
 from repositories.base import ReviewRepositorie, AlertRepository
@@ -81,10 +81,18 @@ def get_city_analysis_service(
 # SCHEMAS (Modelos de Entrada)
 # ==========================================
 
+class SpotData(BaseModel):
+    place_id : str
+    name : Optional[str] = ""
+    lat : Optional[float] = None
+    lng : Optional[float] = None
+    
+    
+    
 class CityAnalysisRequest(BaseModel):
     place_id: str
     city_name: str
-    spot_ids: List[str]
+    spot_info: List[SpotData] = [] 
     force_refresh: bool = False
 
 # ==========================================
@@ -101,13 +109,19 @@ async def analyze_city_endpoint(
     # 1. Bate no Proxy (Verifica status/cache e responde em milissegundos)
     result = await analysis_service.request_deep_analysis(request.place_id, request.force_refresh)
     
+    
+    
     # 2. Se o proxy decidir que precisa processar, joga a tarefa pesada para background
     if result["status"] == "started":
+        
+        just_ids = [spot_info.place_id for spot_info in request.spot_info]
+        
         background_tasks.add_task(
             analysis_service.execute_heavy_analysis, 
             request.place_id, 
             request.city_name,
-            request.spot_ids
+            just_ids,
+            request.spot_info
         )
         
     # 3. Devolve a resposta rápida pro Frontend (Não trava a tela)

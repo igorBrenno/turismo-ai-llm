@@ -20,11 +20,17 @@ class GooglePlacesAdapter(GooglePlacesProviderAdapter):
         response = requests.get(url, params=params)
         data = response.json()
         
-        spot_ids = []
+        spot = []
         if data.get("status") == "OK":
             for place in data.get("results", []):
                 if "place_id" in place:
-                    spot_ids.append(place["place_id"])
+                    geometry = place.get("geometry")
+                    spot.append({
+                        "place_id" : place["place_id"],
+                        "lat" : geometry.get("lat"),
+                        "lng" : geometry.get("lng")
+                        }
+                    )
                     
-        print(f"[GOOGLE API] Encontrados {len(spot_ids)} locais em {city_name}")
-        return spot_ids
+        print(f"[GOOGLE API] Encontrados {len(spot)} locais em {city_name}")
+        return spot
