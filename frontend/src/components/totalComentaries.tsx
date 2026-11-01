@@ -2,23 +2,27 @@ import { useEffect, useState } from "react"
 import { db } from "../firebaseConfig"
 import { collection, doc, getCountFromServer, getDoc, query, Timestamp, where } from "firebase/firestore"
 import { MessageSquare } from "lucide-react"
-
+import { useAuth } from "../contexts/AuthContext"
 export default function TotalCommentaries(){
     const [totalComments, setTotalComments] = useState<number>(0)
     const [ commentsPercentage, setCommentsPercentage] = useState<number>(0)
+    const auth = useAuth();
     const fetchTotalComments = async () => {
-        const dbRef = collection(db, "global_metrics" )
+        const cityId = auth.currentUser?.cityChoiceForAnalysis?.placeId
+        if( !cityId) return;
+        
         try {
-            const docRef = doc(dbRef, "metrics");
+            const docRef = doc(db, "deep_analysis_status", cityId);
             const snap = await getDoc(docRef);
             
             if (snap.exists()) {
-                const count = snap.data().total_comments || 0;
+                const data = snap.data();
+                const count = data.total_analisado || 0;
                 setTotalComments(count);
                 console.log("Total atual:", count);
             }
         } catch (error) {
-            console.error("Erro:", error);
+            console.error("Erro ao tentar pegar total de comentários:", error);
         }
     }
     const commentsPercent = async () => {
