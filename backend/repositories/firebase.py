@@ -5,6 +5,7 @@ from repositories.base import ReviewRepositorie
 from config.firebase import init_firebase
 from datetime import datetime, timezone
 
+
 class FirebaseReviewRepository(ReviewRepositorie):
     def __init__(self):
         self.db = init_firebase()
@@ -58,8 +59,9 @@ class FirebaseReviewRepository(ReviewRepositorie):
         
         
         
-    async def save_spots_and_reviews(self, city_place_id : str, reviews : list ):
+    async def save_spots_and_reviews(self, city_place_id : str, reviews : list, spot_info:Dict[str, Any]  ):
         if not reviews: return
+        if not spot_info: return
         
         print(f"💾 [FIREBASE] Estruturando {len(reviews)} reviews aninhados para a cidade {city_place_id}...")
         
@@ -68,8 +70,24 @@ class FirebaseReviewRepository(ReviewRepositorie):
         
         lotes = [reviews[i:i + tamanho_lote] for  i in range (0, len(reviews), tamanho_lote) ]
         
+        
+        mapping_spots = {}
+        for spot in spot_info:
+            s_dict = spot.model_dump() if hasattr(spot, 'model_dump') else spot
+            
+            place_id = s_dict.get("place_id")
+            if place_id:
+                mapping_spots[place_id] = s_dict
+            
+            
+            
+            
+            
         for lote in lotes:
             batch = self.db.batch()
+            
+            
+            
             
             for r in lote:
                 review_data = r.model_dump()
@@ -83,9 +101,16 @@ class FirebaseReviewRepository(ReviewRepositorie):
                     continue
                 spot_ref = self.db.collection(self.deep_analysis_collection).document(city_place_id).collection("spots").document(spot_id)
                 
+                
+                
+                place_data = mapping_spots.get(spot_id, {})
+                
+                
                 batch.set(spot_ref, {
                             "spot_id": spot_id,
                             "city_place_id": city_place_id,
+                            "lat" : place_data.get("lat"),
+                            "lng" : place_data.get("lng"),
                             "ultima_varredura": firestore.SERVER_TIMESTAMP
                         }, merge=True)
                         
