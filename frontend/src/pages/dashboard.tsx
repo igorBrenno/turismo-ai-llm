@@ -41,7 +41,14 @@ export default function Dashboard() {
     if (!city || !city.placeId) return;
 
     try {
-      const spotIds = spots.map(s => s.id).filter(Boolean);
+      const spotsData = spots
+      .filter(s => s.id)
+      .map(s => ({
+        place_id: s.id,
+        name: s.name || "Local",
+        lat: s.lat || s.lat, 
+        lng: s.lng || s.lng
+      }));
 
       const response = await fetch('http://localhost:8000/api/analyze-city', {
         method: 'POST',
@@ -49,7 +56,7 @@ export default function Dashboard() {
         body: JSON.stringify({
           place_id: city.placeId,
           city_name: city.name,
-          spot_ids: spotIds,
+          spot_info: spotsData,
           force_refresh: forceRefresh
         })
       });
