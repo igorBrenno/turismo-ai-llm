@@ -55,27 +55,20 @@ class ApifyReviewsAdapter(ReviewProviderAdapter):
 
         if not dataset_id:
             dataset_id = getattr(run, "default_dataset_id",  None)
-            
-        formattedReviews : List[ReviewSchema] = []
-        
-        datasetItems = self.client.dataset(dataset_id).iterate_items()
-        
-        for item in datasetItems:
-            text = item.get("text")
-            
-            author_label = "Local Guide" if item.get("isLocalGuide", True) else "Reviewer"
-            if text:
-                formattedReviews.append(
-                    ReviewSchema(
-                        review_id = item.get("reviewId"),
-                        place_id = item.get("placeId"),
-                        author = author_label,
-                        rating = float(item.get("stars", 0)),
-                        text = text,
-                        date = item.get("publishedAtDate"),
-                    )
-                )
-    
-        return formattedReviews
-        
-        
+
+        return self.client.dataset(dataset_id).iterate_items()
+
+    def _to_review_schema(self, item : dict):
+        text = item.get("text")
+        if not text or not item.get("reviewId"):
+            return None
+
+        author_label = "Local Guide" if item.get("isLocalGuide", True) else "Reviewer"
+        return ReviewSchema(
+            review_id = item.get("reviewId"),
+            place_id = item.get("placeId"),
+            author = author_label,
+            rating = float(item.get("stars", 0)),
+            text = text,
+            date = item.get("publishedAtDate"),
+        )
