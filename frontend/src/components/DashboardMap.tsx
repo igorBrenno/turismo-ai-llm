@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import type { TouristSpot } from '../models/Spot';
+import type {  TouristSpotDashboard } from '../models/Spot';
 import { useAuth } from '../contexts/AuthContext';
 import { collorChoosing } from '../utils/collorChoosingOnMarker';
 import { GooglePlaceService } from '../services/GooglePlaceServices';
 
 
 interface SpotsMapDashboardProps {
-  spots: TouristSpot[];
-  selectedSpot?: TouristSpot | null;
-  onSpotClick?: (spot: TouristSpot) => void;
+  spots: TouristSpotDashboard[];
+  selectedSpot?: TouristSpotDashboard | null;
+  onSpotClick?: (spot: TouristSpotDashboard) => void;
   height?: string;
   setSpots : any;
 }
@@ -126,7 +126,7 @@ export default function DashboardSpotsMap({
           return;
         }
 
-        // MODO PESQUISA (Múltiplos Pontos)
+        // (Múltiplos Pontos)
         if (spots.length > 0) {
           const bounds = new LatLngBounds();
 
