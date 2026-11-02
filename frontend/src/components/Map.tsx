@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { TouristSpot } from '../models/Spot';
 import { collorChoosing } from '../utils/collorChoosingOnMarker';
 
-interface SpotsMapProps {
+export interface SpotsMapProps {
   spots: TouristSpot[];
   selectedSpot?: TouristSpot | null;
   onSpotClick?: (spot: TouristSpot) => void;
@@ -26,7 +26,7 @@ export default function SpotsMap({
       if (!mapRef.current || !(window as any).google?.maps) return;
       
       try {
-        // 1. CORRIGIDO: Adicionado o await e o importLibrary
+       
         const { AdvancedMarkerElement, PinElement } = await (window as any).google.maps.importLibrary("marker");
         const { Map, InfoWindow } = await (window as any).google.maps.importLibrary("maps");
         const { LatLngBounds } = await (window as any).google.maps.importLibrary("core");

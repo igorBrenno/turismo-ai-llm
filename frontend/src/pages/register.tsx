@@ -1,36 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock, Eye, EyeOff, BarChart2, Loader2 } from 'lucide-react';
-
-// Importações do Firebase Auth e Firestore
-import { 
-  createUserWithEmailAndPassword, 
-  updateProfile, 
-  sendEmailVerification 
-} from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig'; // Ajuste o caminho do seu arquivo firebaseConfig
+import { useAuth, type cityChoice } from '../contexts/AuthContext';
 
 export default function Register() {
   const navigate = useNavigate();
-
+  const { signUp } = useAuth();
+  
   // Estados do formulário
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
-
+  const [cityInfo, setCityInfo] = useState<{ lat: number, lng: number, placeId : string } | null>(null); 
+  const [cityName, setCityName] = useState<string | null>(null); 
+  
   // Estados de requisição e feedback
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-
+  const [apiReady, setApiReady] = useState(false);
+  
   // Estados do validador de senha
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [strengthLabel, setStrengthLabel] = useState('Nula');
   const [strengthColor, setStrengthColor] = useState('bg-[#ba1a1a]');
   const [textColor, setTextColor] = useState('text-[#ba1a1a]');
+  
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Monitora a senha e calcula a segurança em tempo real
   useEffect(() => {
@@ -65,57 +63,100 @@ export default function Register() {
     }
   }, [password]);
 
-  // Envio dos dados para a Autenticação e Banco do Firebase
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY;
+    
+    if ((window as any).google?.maps?.places) {
+      setApiReady(true);
+      return;
+    }
+
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly&loading=async`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    const checkInterval = setInterval(() => {
+      if ((window as any).google?.maps?.places) {
+        setApiReady(true);
+        clearInterval(checkInterval);
+      }
+    }, 100);
+
+    return () => clearInterval(checkInterval);
+  }, []);
+
+  useEffect(() => {
+    if (!apiReady || !inputRef.current) return;
+
+    try {
+      const autocomplete = new (window as any).google.maps.places.Autocomplete(inputRef.current, {
+        types: ['(cities)'],
+        fields: ['formatted_address', 'geometry', 'name', "place_id"],
+      });
+
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (place && place.geometry && place.geometry.location && place.place_id) {
+          // Extração correta das coordenadas invocando lat() e lng()
+          setCityInfo({
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            placeId : place.place_id
+          });
+          console.log(`${place.formatted_address}`)
+          setCityName(place.formatted_address);
+        } else {
+          console.error("Variável Place ou geometria não existe.");
+          setCityInfo(null);
+          setCityName(null);
+        }
+      });
+    } catch (e) {
+      console.error("Erro ao iniciar autocomplete:", e);
+    }
+  }, [apiReady]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeTerms) return;
+
+    // Trava de segurança: impede o envio se a cidade não foi selecionada no Autocomplete
+    if (!cityInfo || !cityName) {
+      setErrorMessage('Por favor, selecione uma cidade válida na lista de sugestões.');
+      return;
+    }
 
     setIsLoading(true);
     setErrorMessage('');
     setSuccessMessage('');
 
     const formattedEmail = email.trim().toLowerCase();
+    const cityObject: cityChoice = {
+      name: cityName,
+      lat: cityInfo.lat,
+      lng: cityInfo.lng,
+      placeId : cityInfo.placeId
+    }
 
     try {
-      // 1. Criar a conta no Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        formattedEmail, 
-        password
-      );
-      const user = userCredential.user;
-
-      // 2. Atualizar o nome exibido (displayName) no perfil do Auth
-      await updateProfile(user, {
-        displayName: fullName
-      });
-
-      // 3. Salvar os dados adicionais no Firestore (coleção 'users')
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        full_name: fullName,
-        email: formattedEmail,
-        role: '',
-        createdAt: new Date().toISOString()
-      });
-
-      // 4. (Opcional) Enviar e-mail de verificação de conta
-      await sendEmailVerification(user);
-
+      await signUp(formattedEmail, password, cityObject);
+      
       setSuccessMessage('Conta criada com sucesso! Enviamos um e-mail de verificação para a sua caixa de entrada.');
 
-      // Limpa os campos
       setFullName('');
       setEmail('');
       setPassword('');
 
-      // Redireciona para o login ou painel após 3.5s
       setTimeout(() => {
         navigate('/');
       }, 3500);
 
     } catch (error: any) {
-      // Tratamento de erros comuns do Firebase Auth
       switch (error.code) {
         case 'auth/email-already-in-use':
           setErrorMessage('Este e-mail institucional já está cadastrado em nosso sistema.');
@@ -136,11 +177,8 @@ export default function Register() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#F8FAFC] font-sans selection:bg-[#d2e4fb]">
-      
-      {/* Wrapper Estrutural Card */}
       <main className="w-full max-w-[1100px] bg-white rounded-xl shadow-md flex flex-col md:flex-row overflow-hidden border border-[#E2E8F0] min-h-[700px]">
         
-        {/* Lado Esquerdo: Identidade Visual */}
         <section className="hidden md:flex md:w-1/2 bg-[#041627] relative p-8 flex-col justify-between overflow-hidden">
           <div className="z-10">
             <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">TouristWatch AI</h1>
@@ -149,13 +187,11 @@ export default function Register() {
             </p>
           </div>
 
-          {/* Área Gráfica Ilustrativa */}
           <div className="relative flex-1 flex items-center justify-center py-8">
             <div className="absolute inset-0 opacity-10">
               <div className="w-full h-full" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
             </div>
             
-            {/* Widget Glassmorphism */}
             <div className="relative z-10 w-full max-w-[290px] p-5 bg-white/[0.06] backdrop-blur-md rounded-xl border border-white/10 shadow-xl">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart2 className="w-4 h-4 text-[#d3e4fe]" />
@@ -181,7 +217,6 @@ export default function Register() {
             </blockquote>
           </div>
 
-          {/* Imagem de Fundo Misturada */}
           <div className="absolute inset-0 z-0 opacity-20 mix-blend-overlay">
             <img 
               className="w-full h-full object-cover" 
@@ -191,7 +226,6 @@ export default function Register() {
           </div>
         </section>
 
-        {/* Lado Direito: Formulário de Registro */}
         <section className="w-full md:w-1/2 p-6 md:p-12 flex flex-col justify-center bg-white">
           <div className="max-w-md mx-auto w-full space-y-6">
             
@@ -200,7 +234,6 @@ export default function Register() {
               <p className="text-sm text-[#44474c]">Registre-se para acessar o painel administrativo.</p>
             </div>
 
-            {/* Banners de Alerta */}
             {errorMessage && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-lg">
                 {errorMessage}
@@ -215,7 +248,6 @@ export default function Register() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               
-              {/* Nome Completo */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[#041627] tracking-wide" htmlFor="fullName">Nome Completo</label>
                 <div className="relative">
@@ -233,7 +265,6 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* E-mail Institucional */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[#041627] tracking-wide" htmlFor="email">E-mail Institucional</label>
                 <div className="relative">
@@ -251,7 +282,20 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Senha e Medidor de Força */}
+              {/* Input da Cidade inserido no DOM com a referência para o Autocomplete */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-[#041627] tracking-wide" htmlFor="city">Cidade Base</label>
+                <input 
+                  ref={inputRef}
+                  id="city"
+                  type="text" 
+                  required
+                  disabled={isLoading}
+                  placeholder="Busque sua cidade..." 
+                  className="w-full px-4 py-2.5 bg-[#fbf9fa] border border-[#c4c6cd] rounded-lg text-sm text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] focus:border-[#041627] transition-all disabled:opacity-60"
+                />
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[#041627] tracking-wide" htmlFor="password">Senha de Acesso</label>
                 <div className="relative">
@@ -276,7 +320,6 @@ export default function Register() {
                   </button>
                 </div>
 
-                {/* Barra Animada de Progresso de Força */}
                 <div className="pt-1.5 space-y-1">
                   <div className="h-1 w-full bg-[#e4e2e3] rounded-full overflow-hidden">
                     <div 
@@ -291,7 +334,6 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Termos de Serviço */}
               <div className="flex items-start gap-3 pt-2">
                 <input 
                   id="terms" 
@@ -307,7 +349,6 @@ export default function Register() {
                 </label>
               </div>
 
-              {/* CTA Criar Conta */}
               <button 
                 type="submit"
                 disabled={isLoading || !agreeTerms}
@@ -324,7 +365,6 @@ export default function Register() {
               </button>
             </form>
 
-            {/* Alternar para Login */}
             <div className="text-center pt-2">
               <p className="text-sm text-[#44474c]">
                 Já possui uma conta institucional?{' '}

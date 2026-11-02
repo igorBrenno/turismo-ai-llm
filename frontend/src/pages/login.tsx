@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Monitor, Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
-// Importações de autenticação do Firebase
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-import { auth } from '../firebaseConfig'; // Importa a instância do auth configurada
-
+import { useAuth } from '../contexts/AuthContext';
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -12,7 +9,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-
+  const {signIn} = useAuth();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -20,13 +17,7 @@ export default function Login() {
 
     try {
       // Configura a persistência baseada no checkbox "Lembrar-me"
-      const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-      await setPersistence(auth, persistenceType);
-
-      // Executa a autenticação no Firebase
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-
-      console.log('Login efetuado com sucesso no Firebase:', userCredential.user);
+      await signIn( email, password, rememberMe)
       
       // Redireciona para a Dashboard após o login bem-sucedido
       navigate('/dashboard');
@@ -159,7 +150,7 @@ export default function Login() {
                       id="password"
                       type="password" 
                       required
-                      placeholder="••••••••" 
+                      placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={isLoading}

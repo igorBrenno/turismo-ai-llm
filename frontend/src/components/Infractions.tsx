@@ -1,12 +1,15 @@
 import { collection, getCountFromServer, query, where } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 import { useEffect, useState } from "react";
-
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Infractions(){
     const [infractions, setInfractions] = useState<number>(0)
+    const auth = useAuth()
     const fetchInfractions = async () => {
-        const dbRef = collection(db, "alerts");
+        const cityId = auth.currentUser?.cityChoiceForAnalysis?.placeId
+
+        const dbRef = collection(db, `deep_analysis_status/${cityId}/alerts`);
         try{
             const q = query( dbRef , where("resolvida", "==", false))
             const snapshot = await getCountFromServer(q)
