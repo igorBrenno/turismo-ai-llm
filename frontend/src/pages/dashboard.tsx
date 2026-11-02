@@ -15,12 +15,12 @@ import type { Alerta } from '../models/Visual';
 import TotalCommentaries from '../components/totalComentaries';
 import Infractions from '../components/Infractions';
 import UnderRisk from '../components/UnderRisk';
-import type { TouristSpot } from '../models/Spot';
+import type { TouristSpot, TouristSpotDashboard } from '../models/Spot';
 import DashboardSpotsMap from '../components/DashboardMap';
 import CustomAlertsPanel from '../components/CustomAlertsPanel';
 
 // Importações do Firebase para escutar em tempo real
-import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 export default function Dashboard() {
@@ -32,7 +32,7 @@ export default function Dashboard() {
   const [periodo, setPeriodo] = useState('Esta Semana');
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [spots, setSpots] = useState<TouristSpot[]>([]);
-  
+  const [mapMarkers, setMapMarkers] = useState<TouristSpotDashboard[]>([])
   // Novos estados para o fluxo assíncrono com o Python e Firebase
   const [analysisStatus, setAnalysisStatus] = useState<string>('idle');
   const [dbAlertas, setDbAlertas] = useState<any[]>([]);
@@ -139,6 +139,32 @@ export default function Dashboard() {
   const dadosGrafico = periodo === 'Esta Semana' 
     ? { seguranca: { qtd: 68, p: '47.8%' }, higiene: { qtd: 42, p: '29.5%' }, acesso: { qtd: 32, p: '22.7%' } }
     : { seguranca: { qtd: 245, p: '52.1%' }, higiene: { qtd: 198, p: '31.2%' }, acesso: { qtd: 110, p: '16.7%' } };
+
+
+
+  const loadMarkers = async () => {
+    const cityId = auth.currentUser?.cityChoiceForAnalysis?.placeId
+    if (!cityId) return;
+    const dbRef = collection(db, 'deep_analysis_status', cityId, 'spots');
+    const snapshot = await getDocs(dbRef);
+    const data = snapshot.docs.map(doc => ({
+      id : doc.id,
+      ...doc.data()
+    }as TouristSpotDashboard)) 
+    return data
+  }
+
+  useEffect(() => {
+    const fetchMarkers = async () => {
+      const data = await loadMarkers()
+
+      if( data){
+        setMapMarkers(data)
+      }
+    }
+
+    fetchMarkers()
+  },[auth.currentUser?.cityChoiceForAnalysis?.placeId])
 
   return (
     <div className="bg-[#F8FAFC] text-[#1b1c1d] min-h-screen flex flex-col antialiased selection:bg-[#041627] selection:text-white font-sans">
@@ -288,10 +314,10 @@ export default function Dashboard() {
 
           <div className="relative w-full h-[500px] sm:h-[560px] rounded-xl overflow-hidden border border-[#CBD5E1] bg-[#F4F6F8] shadow-inner select-none">
             <DashboardSpotsMap
-              spots={spots} 
+              spots={mapMarkers} 
               onSpotClick={() => {}} 
               height='100%'
-              setSpots={setSpots}
+              setSpots={setMapMarkers}
             />
           </div>
 
