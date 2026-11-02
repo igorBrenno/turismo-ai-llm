@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from typing import Optional
 class ReviewSchema(BaseModel):
     review_id : str
-    place_id : str
     author : str
     rating : float
     text : str
