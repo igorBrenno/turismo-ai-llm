@@ -61,7 +61,7 @@ class CityDeepAnalysis:
                 analise_spot = self.llm.analizar_reviews(spot_reviews)
                 
                 if spot_id in spot_info_dict:
-                    spot_info_dict[spot_id]["danger_score"] = analise_spot.get("perigo_score", 0)
+                    spot_info_dict[spot_id]["danger_score"] = analise_spot.get("danger_score", 0)
                     spot_info_dict[spot_id]["score_absoluto"] = analise_spot.get("score_absoluto", 0)
                     spot_info_dict[spot_id]["resumo_ia"] = analise_spot.get("resumo", "")
                     spot_info_dict[spot_id]["total_analisado_ia"] = analise_spot.get("total_reviews", 0)
