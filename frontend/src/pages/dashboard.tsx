@@ -49,7 +49,8 @@ export default function Dashboard() {
         place_id: s.id,
         name: s.name || "Local",
         lat: s.lat || s.lat, 
-        lng: s.lng || s.lng
+        lng: s.lng || s.lng,
+        rating : s.rating || 0,
       }));
 
       const response = await fetch('http://localhost:8000/api/analyze-city', {
