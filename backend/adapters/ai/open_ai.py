@@ -86,11 +86,11 @@ class OpenAIAdapter(AIAnalizerProviderAdapter):
 
         
         total_reviews = len(reviews)
-        score_final = (score_absoluto / total_reviews) if total_reviews > 0 else 0
+        score_final = (score_absoluto / total_reviews) * 100 if total_reviews > 0 else 0
         resumo_final = " | ".join([r for r in resumos_gerais if r])
         
         resultado_ia_agregado = {
-            "perigo_score" : score_final,
+            "danger_score" : score_final,
             "score_absoluto" : score_absoluto,
             "resumo": resumo_final,
             "alertas": alertas_gerais,
