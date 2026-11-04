@@ -3,6 +3,7 @@ from adapters.ai import open_ai
 from datetime import datetime, timezone
 from google.cloud import firestore
 from adapters.google_places.google_places import GooglePlacesAdapter
+from collections import defaultdict
 class CityDeepAnalysis:
     def __init__(self, db_repo: FirebaseReviewRepository, apify_adapter, google_adapter, llm_adapter):
         self.db = db_repo
@@ -28,9 +29,9 @@ class CityDeepAnalysis:
         await self.db.update_deep_analysis(place_id, "processing")
         return {"status": "started", "message": "Varredura profunda iniciada no background."}
         
-    async def execute_heavy_analysis(self, place_id : str, city_name : str, spot_ids : list, spot_info : dict[str, any]):
+    async def execute_heavy_analysis(self, place_id: str, city_name: str, spot_ids: list, spot_info: list):
         try:
-            # 1. Puxa os dados do Apify (usando a lista de spots recebida do Frontend)
+            # 1. Puxa os dados do Apify
             reviews = self.apify.fetch_reviews(spot_ids, limit=30)
             
             if not reviews:
@@ -38,33 +39,57 @@ class CityDeepAnalysis:
                 await self.db.update_deep_analysis_status(place_id, "idle")
                 return
 
-            # 2. Chama o seu adapter da IA
+            # 2. Agrupa os reviews por Spot
+            from collections import defaultdict
+            review_per_spot = defaultdict(list)
             
+            for r in reviews:
+                r_dict = r.model_dump() if hasattr(r, 'model_dump') else r
+                review_per_spot[r_dict["place_id"]].append(r)  # <-- CORRIGIDO: Faltava o 'r' dentro do append
             
-            analise_ia = self.llm.analizar_reviews(reviews)
+            spot_info_dict = {}
+            for s in spot_info:
+                s_dict = s.model_dump() if hasattr(s, 'model_dump') else s
+                spot_info_dict[s_dict.get("place_id")] = s_dict
             
-            # 3. Salva os dados consolidados (score, resumo) no cache da cidade
+            all_alerts_city = []
+            
+            # 3. A IA analisa CADA SPOT individualmente
+            for spot_id, spot_reviews in review_per_spot.items():
+                print(f"🧠 IA Analisando spot: {spot_id}...")
+                
+                analise_spot = self.llm.analizar_reviews(spot_reviews)
+                
+                if spot_id in spot_info_dict:
+                    spot_info_dict[spot_id]["danger_score"] = analise_spot.get("danger_score", 0)
+                    spot_info_dict[spot_id]["score_absoluto"] = analise_spot.get("score_absoluto", 0)
+                    spot_info_dict[spot_id]["resumo_ia"] = analise_spot.get("resumo", "")
+                    spot_info_dict[spot_id]["total_analisado_ia"] = analise_spot.get("total_reviews", 0)
+                    
+                if analise_spot.get("alertas"):
+                    for alerta in analise_spot["alertas"]:
+                        alerta["place_id"] = spot_id
+                        all_alerts_city.append(alerta)
+                        
+            updated_spot_info = list(spot_info_dict.values())
+            
+            # 4. Salva Spots (com lat, lng e scores da IA) + Reviews em UMA SÓ VEZ
+            # <-- CORRIGIDO: Passando a lista nova (updated_spot_info) que tem as notas da IA
+            await self.db.save_spots_and_reviews(place_id, reviews, updated_spot_info)
+            
+            # 5. Atualiza o documento principal da cidade (Como a nota foi pros spots, aqui fica só o geral)
+            from google.cloud import firestore # Certifique-se de que o firestore está importado no topo do arquivo
             await self.db.save_data_deep_analysis(place_id, {
                 "city_name": city_name,
-                "perigo_score": analise_ia["perigo_score"],
-                "score_absoluto": analise_ia["score_absoluto"],
-                "resumo_ia": analise_ia["resumo"],
-                "total_analisado": analise_ia["total_reviews"],
+                "total_analisado": len(reviews),
                 "ultima_atualizacao": firestore.SERVER_TIMESTAMP
             })
             
+            # 6. Salva todos os alertas (crimes, golpes) separadamente na cidade
+            if all_alerts_city:
+                await self.db.save_alerts_deep_analysis(place_id, all_alerts_city)
             
-            
-            # 4. Salva os alertas (crimes, golpes) separadamente
-            if analise_ia["alertas"]:
-                await self.db.save_alerts_deep_analysis(place_id, analise_ia["alertas"])
-            
-            
-            
-            await self.db.save_spots_and_reviews(place_id, reviews, spot_info)
-            
-            
-            # 5. Libera o banco mudando para idle (Isso vai avisar o React!)
+            # 7. Libera o banco mudando para idle (Isso vai avisar o React!)
             await self.db.update_deep_analysis(place_id, "idle")
             print(f"[SUCESSO] Análise da cidade {city_name} concluída.")
             
