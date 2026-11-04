@@ -166,7 +166,10 @@ export default function Dashboard() {
     }
 
     fetchMarkers()
-  },[auth.currentUser?.cityChoiceForAnalysis?.placeId])
+  },[])
+
+
+  
 
   return (
     <div className="bg-[#F8FAFC] text-[#1b1c1d] min-h-screen flex flex-col antialiased selection:bg-[#041627] selection:text-white font-sans">

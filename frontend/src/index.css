@@ -24,3 +24,25 @@ body {
 .chart-bar {
   transition: height 1s ease-out;
 }
+.custom-advanced-pin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border-width: 2px;
+  border-style: solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  transform: translateY(-50%); 
+}
+
+.danger-pulse {
+  animation: radar-glow 1.5s infinite;
+}
+
+@keyframes radar-glow {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.8); }
+  70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
