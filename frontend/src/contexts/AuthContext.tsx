@@ -6,7 +6,8 @@ import { getUserDocument, setPersistenceType, setUserDocumentOnRegister, userAut
 export interface cityChoice {
     name : string,
     lat : number,
-    lng : number
+    lng : number, 
+    placeId : string | null,
 }
 
 
@@ -63,6 +64,7 @@ export function AuthContextProvider( {children} : { children:ReactNode}){
                 name : data?.cityChoiceForAnalysis.name,
                 lat : data?.cityChoiceForAnalysis.lat ,
                 lng : data?.cityChoiceForAnalysis.lng ,
+                placeId : data?.cityChoiceForAnalysis.place_id,
             } : null;
             console.log('Login efetuado com sucesso no Firebase:', userCredential.user);
             setCurrentUser({

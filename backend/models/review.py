@@ -6,4 +6,5 @@ class ReviewSchema(BaseModel):
     rating : float
     text : str
     date : Optional[str] = None
+    place_id : Optional[str] = None
     

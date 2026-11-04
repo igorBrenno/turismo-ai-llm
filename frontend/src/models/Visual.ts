@@ -1,8 +1,8 @@
 export interface Alerta {
-  id: number;
+  id: string | number;
   localidade: string;
   problema: string;
-  severidade: 'Alto' | 'Médio' | 'Baixo';
+  severidade: 'Alto' | 'Médio' | 'Baixo' | 'Crítico' | 'Segurança' | 'Denúncia' | 'Conforme' | string;
   horario: string;
-  tipo: 'map' | 'shield' | 'home';
+  tipo: 'map' | 'shield' | 'home' | string;
 }

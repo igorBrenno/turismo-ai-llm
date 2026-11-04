@@ -34,7 +34,7 @@ export default function SpotsMap({
         if (cancelled) return;
 
         if(!googleMapRef.current) {
-          
+          // 2. CORRIGIDO: Usando direto a classe Map importada acima
           googleMapRef.current = new Map(mapRef.current, {
             mapId : 'DEMO_MAP_ID',
             zoom: selectedSpot ? 16 : 12,
@@ -49,7 +49,7 @@ export default function SpotsMap({
         
         const map = googleMapRef.current;
 
-        
+        // 3. CORRIGIDO: AdvancedMarkerElement não usa setMap(null), usa m.map = null
         markersRef.current.forEach(m => { m.map = null });
         markersRef.current = [];
 
