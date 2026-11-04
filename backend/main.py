@@ -86,6 +86,7 @@ class SpotData(BaseModel):
     name : Optional[str] = ""
     lat : Optional[float] = None
     lng : Optional[float] = None
+    rating : float = 0.0
     
     
     

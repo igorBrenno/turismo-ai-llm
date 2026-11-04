@@ -22,6 +22,7 @@ import CustomAlertsPanel from '../components/CustomAlertsPanel';
 // Importações do Firebase para escutar em tempo real
 import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import MonitoredSpots from '../components/MonitoredSpots';
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -49,7 +50,8 @@ export default function Dashboard() {
         place_id: s.id,
         name: s.name || "Local",
         lat: s.lat || s.lat, 
-        lng: s.lng || s.lng
+        lng: s.lng || s.lng,
+        rating : s.rating || 0,
       }));
 
       const response = await fetch('http://localhost:8000/api/analyze-city', {
@@ -164,7 +166,10 @@ export default function Dashboard() {
     }
 
     fetchMarkers()
-  },[auth.currentUser?.cityChoiceForAnalysis?.placeId])
+  },[])
+
+
+  
 
   return (
     <div className="bg-[#F8FAFC] text-[#1b1c1d] min-h-screen flex flex-col antialiased selection:bg-[#041627] selection:text-white font-sans">
@@ -267,8 +272,8 @@ export default function Dashboard() {
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Zonas Monitoradas</p>
-                  <h3 className="text-3xl sm:text-4xl font-extrabold text-[#041627] mt-2 tracking-tight">12</h3>
+                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Lugares Turisticos Monitoradas</p>
+                  <MonitoredSpots />
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center transition-transform group-hover:scale-105">
                   <Radio className="w-6 h-6" />

@@ -79,8 +79,7 @@ class FirebaseReviewRepository(ReviewRepositorie):
             place_id = s_dict.get("place_id")
             if place_id:
                 mapping_spots[place_id] = s_dict
-            
-            
+                
             
             
             
@@ -108,10 +107,14 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 
                 
                 batch.set(spot_ref, {
-                            "spot_id": spot_id,
+                            "spot_id" : spot_id,
                             "city_place_id": city_place_id,
+                            "nome": place_data.get("name", "Local Sem Nome"),
                             "lat" : place_data.get("lat"),
                             "lng" : place_data.get("lng"),
+                            "danger_score" : place_data.get("danger_score"),
+                            "rating" : place_data.get("rating", 0),
+                            "resumo_ia": place_data.get("resumo_ia", ""),
                             "ultima_varredura": firestore.SERVER_TIMESTAMP
                         }, merge=True)
                         
