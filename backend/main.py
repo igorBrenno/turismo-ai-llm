@@ -10,6 +10,10 @@ from adapters.reviews.apify import ApifyReviewsAdapter
 from adapters.reviews.base import ReviewProviderAdapter
 from adapters.ai.base import AIAnalizerProviderAdapter
 from adapters.ai.open_ai import OpenAIAdapter
+from config.auth import get_current_user
+from models.report import UserReportCreate, UserReportPublic
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 
 if os.path.exists(".env.local"):
     load_dotenv(dotenv_path=".env.local")
@@ -95,3 +99,38 @@ async def get_spot_reviews(
     except Exception as e:
         print(f"Erro no processamento: {e}")
         raise HTTPException(status_code=500, detail="Erro ao processar comentários e IA.")
+
+
+@app.post("/api/reports", response_model=UserReportPublic, status_code=201)
+async def create_user_report(
+    report: UserReportCreate,
+    user: Dict[str, Any] = Depends(get_current_user),
+    repo: ReviewRepositorie = Depends(get_review_repositorie),
+):
+    data = {
+        **report.model_dump(mode="json"),
+        "origem": "usuario",
+        "uid": user["uid"],
+        "author": user.get("name") or user.get("email") or "Usuário",
+        "resolvida": False,
+        "status": "pendente",
+        "criado_em": datetime.now(timezone.utc),
+    }
+    try:
+        report_id = await repo.save_user_report(data)
+    except Exception as e:
+        print(f"Erro ao salvar denúncia: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao registrar a denúncia.")
+    return {**data, "id": report_id}
+
+
+@app.get("/api/reports", response_model=List[UserReportPublic])
+async def list_user_reports(
+    user: Dict[str, Any] = Depends(get_current_user),
+    repo: ReviewRepositorie = Depends(get_review_repositorie),
+):
+    try:
+        return await repo.list_user_reports()
+    except Exception as e:
+        print(f"Erro ao listar denúncias: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao listar as denúncias.")

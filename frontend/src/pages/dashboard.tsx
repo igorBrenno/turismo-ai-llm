@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { 
+import { useCallback, useEffect, useState } from 'react';
+import {
    AlertTriangle, MoreVertical, 
   MapPin, Shield, Home, CheckCircle2, Trash2, Clock, 
   RefreshCw, Radio, Sliders, Maximize,  
    BarChart2, Check, Hourglass, Users, Flame, 
-  ArrowRight, ClipboardList, Filter, Accessibility
+  ArrowRight, ClipboardList, Filter, Accessibility, Megaphone
 } from 'lucide-react';
 
 import type { Alerta } from '../models/Visual';
@@ -14,14 +14,49 @@ import Infractions from '../components/Infractions';
 
 import type { TouristSpot } from '../models/Spot';
 import DashboardSpotsMap from '../components/DashboardMap';
+import ReportDrawer from '../components/ReportDrawer';
+import { useAuth } from '../contexts/AuthContext';
+import type { UserReport } from '../models/Report';
+import { ReportService } from '../services/ReportService';
+import { reportToAlerta } from '../utils/reportToAlerta';
 export default function Dashboard() {
+  const { currentUser } = useAuth();
+  const userUid = currentUser?.uid;
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
   const [searchTerm] = useState('');
   
   const [periodo, setPeriodo] = useState('Esta Semana');
-  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<number | string | null>(null);
   const [spots, setSpots] = useState<TouristSpot[]>([])
-  
+  const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
+  const [userReports, setUserReports] = useState<UserReport[]>([]);
+  const [userReportsError, setUserReportsError] = useState(false);
+
+  useEffect(() => {
+    if (!userUid) return;
+    let cancelled = false;
+
+    ReportService.list()
+      .then((reports) => {
+        if (cancelled) return;
+        setUserReports(reports);
+        setUserReportsError(false);
+      })
+      .catch((error) => {
+        console.error('Erro ao carregar denúncias:', error);
+        if (!cancelled) setUserReportsError(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userUid]);
+
+  const closeReportDrawer = useCallback(() => setReportDrawerOpen(false), []);
+  const handleReportCreated = useCallback((report: UserReport) => {
+    setUserReports((current) => [report, ...current]);
+  }, []);
+
   const [alertas, setAlertas] = useState<Alerta[]>([
     { id: 1, localidade: 'Praia do Sol - Norte', problema: 'Acúmulo de resíduos sólidos em área protegida', severidade: 'Alto', horario: 'Há 14 min', tipo: 'map' },
     { id: 2, localidade: 'Trilha do Mirante', problema: 'Sinalização de segurança vandalizada', severidade: 'Médio', horario: 'Há 45 min', tipo: 'shield' },
@@ -32,18 +67,20 @@ export default function Dashboard() {
     ? { seguranca: { qtd: 68, p: '47.8%' }, higiene: { qtd: 42, p: '29.5%' }, acesso: { qtd: 32, p: '22.7%' } }
     : { seguranca: { qtd: 245, p: '52.1%' }, higiene: { qtd: 198, p: '31.2%' }, acesso: { qtd: 110, p: '16.7%' } };
 
-  const handleDeletarAlerta = (id: number) => {
+  const handleDeletarAlerta = (id: number | string) => {
     setAlertas(alertas.filter(alerta => alerta.id !== id));
     setActiveMenuId(null);
   };
 
-  const handleResolverAlerta = (id: number) => {
+  const handleResolverAlerta = (id: number | string) => {
     alert(`Alerta #${id} marcado como resolvido!`);
     setAlertas(alertas.filter(alerta => alerta.id !== id));
     setActiveMenuId(null);
   };
 
-  const alertasFiltrados = alertas.filter(alerta => 
+  const todosAlertas: Alerta[] = [...userReports.map(reportToAlerta), ...alertas];
+
+  const alertasFiltrados = todosAlertas.filter(alerta =>
     alerta.localidade.toLowerCase().includes(searchTerm.toLowerCase()) ||
     alerta.problema.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -79,7 +116,14 @@ export default function Dashboard() {
                 Acompanhe indicadores territoriais agregados, fluxo de notificações da população e integridade dos sensores.
               </p>
             </div>
-            <div className="flex items-center gap-2 self-start md:self-auto">
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <button
+                type="button"
+                onClick={() => setReportDrawerOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#041627] text-white text-xs font-semibold shadow-sm hover:opacity-90 transition-opacity"
+              >
+                <Megaphone className="w-3.5 h-3.5" /> Faça sua denúncia aqui
+              </button>
               <span className="flex items-center text-xs text-[#505f76] bg-white border border-[#E2E8F0] px-3 py-1.5 rounded-lg shadow-sm font-medium">
                 <Clock className="w-3.5 h-3.5 text-slate-400 mr-1.5" /> Última sincronização: <strong className="text-[#041627] ml-1">Hoje, 14:38</strong>
               </span>
@@ -345,10 +389,16 @@ export default function Dashboard() {
                 </select>
               </div>
               <span className="text-xs font-medium text-[#74777d] bg-[#F1F5F9] px-3 py-1.5 rounded-lg border border-[#E2E8F0]">
-                Exibindo <strong>{alertasFiltrados.length}</strong> de <strong>{alertas.length}</strong> alertas ativos
+                Exibindo <strong>{alertasFiltrados.length}</strong> de <strong>{todosAlertas.length}</strong> alertas ativos
               </span>
             </div>
           </div>
+
+          {userReportsError && (
+            <p role="alert" className="px-6 sm:px-8 py-3 text-xs font-medium text-amber-800 bg-amber-50 border-b border-amber-200">
+              Não foi possível carregar as denúncias dos usuários.
+            </p>
+          )}
 
           <div className="overflow-x-auto custom-scrollbar">
             {alertasFiltrados.length === 0 ? (
@@ -378,7 +428,12 @@ export default function Dashboard() {
                         </div>
                         <span className="text-sm font-bold text-[#041627]">{alerta.localidade}</span>
                       </td>
-                      <td className="py-4 px-6 text-[#1b1c1d] font-medium">{alerta.problema}</td>
+                      <td className="py-4 px-6 text-[#1b1c1d] font-medium">
+                        {alerta.origem === 'usuario' && (
+                          <span className="block text-[11px] font-bold text-[#505f76] mb-0.5">Relato de usuário</span>
+                        )}
+                        <span className="break-words">{alerta.problema}</span>
+                      </td>
                       <td className="py-4 px-6 text-center">
                         <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full uppercase inline-flex items-center gap-1 ${
                           alerta.severidade === 'Alto' ? 'bg-[#ffdad6] text-[#93000a]' :
@@ -392,9 +447,13 @@ export default function Dashboard() {
                         <span className="flex items-center"><Clock className="w-3 h-3 mr-1 text-slate-400"/> {alerta.horario}</span>
                       </td>
                       <td className="py-4 px-6 text-center relative">
+                        {alerta.origem === 'usuario' ? (
+                          <span className="px-2.5 py-1 text-[11px] font-bold rounded-full bg-slate-100 text-[#505f76]">Pendente</span>
+                        ) : (
                         <button onClick={() => setActiveMenuId(activeMenuId === alerta.id ? null : alerta.id)} className="p-1 rounded hover:bg-slate-200">
                           <MoreVertical className="w-4 h-4" />
                         </button>
+                        )}
                         {activeMenuId === alerta.id && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setActiveMenuId(null)}></div>
@@ -413,6 +472,12 @@ export default function Dashboard() {
           </div>
         </section>
       </main>
+
+      <ReportDrawer
+        open={reportDrawerOpen}
+        onClose={closeReportDrawer}
+        onCreated={handleReportCreated}
+      />
     </div>
   );
 }

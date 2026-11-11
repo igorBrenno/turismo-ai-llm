@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
 from google.cloud import firestore  # Importação necessária para o Increment
 from google.cloud.firestore_v1.base_query import FieldFilter
 from repositories.base import ReviewRepositorie
@@ -12,6 +12,7 @@ class FirebaseReviewRepository(ReviewRepositorie):
         self.global_collection_name = "global_status"
         self.global_doc_id = "metrics" 
         self.global_alert_collection = "alerts"
+        self.user_reports_collection = "user_reports"
     async def get_analysis(self, place_id: str) -> Optional[Dict[str, Any]]:
         doc_ref = self.db.collection(self.collection_name).document(place_id)
         doc = await doc_ref.get()
@@ -46,10 +47,24 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 "place_id" : place_id,
                 "review_id" : review_id,
                 "tipo_perigo" : alerta.get("tipo_perigo"),
-                "justificativa" : alerta.get("justificativa")
+                "justificativa" : alerta.get("justificativa"),
+                "resolvida" : False
             }
             batch.set(doc_ref, dados_alertas)
         await batch.commit()
         print(f'[FIREBASE ALERT] {len(alerts)} novos alertas registrados para o local: {place_id}')
-            
+
+    async def save_user_report(self, data: Dict[str, Any]) -> str:
+        doc_ref = self.db.collection(self.user_reports_collection).document()
+        await doc_ref.set(data)
+        return doc_ref.id
+
+    async def list_user_reports(self, limit: int = 50) -> List[Dict[str, Any]]:
+        query = (
+            self.db.collection(self.user_reports_collection)
+            .order_by("criado_em", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+        )
+        return [{**doc.to_dict(), "id": doc.id} async for doc in query.stream()]
+
             
