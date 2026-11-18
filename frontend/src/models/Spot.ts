@@ -28,4 +28,7 @@ export interface TouristSpotDashboard {
   lat : number;
   lng : number;
   alert : boolean;
+  // Campos salvos pelo backend em deep_analysis_status/{cidade}/spots
+  nome?: string;
+  danger_score?: number;
 }
