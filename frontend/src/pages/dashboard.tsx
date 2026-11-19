@@ -7,7 +7,7 @@ import {
   ClipboardList, Filter, Loader2
 } from 'lucide-react';
 
-// Imports do Material-UI para o botão do satélite
+
 import Button from '@mui/material/Button';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAlt';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,6 +26,7 @@ import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'fi
 import { db } from '../firebaseConfig';
 import MonitoredSpots from '../components/MonitoredSpots';
 import SpotInfoPanel from '../components/SpotInfoPanel';
+import LastSyncOnCityChoice from '../components/LastSyncOnCityChoice';
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -248,15 +249,13 @@ export default function Dashboard() {
                 <span className="w-2 h-2 rounded-full bg-[#041627]"></span>
                 Painel Central de Controle
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-[#041627] tracking-tight">Monitoramento em Tempo Real</h2>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-[#041627] tracking-tight">Monitoramento</h2>
               <p className="text-sm text-[#505f76] mt-1 max-w-2xl">
-                Acompanhe indicadores territoriais agregados, fluxo de notificações da população e integridade dos sensores.
+                Acompanhe indicadores de ponto turisticos com o objetivo de identificar perigos turisticos.
               </p>
             </div>
             <div className="flex items-center gap-2 self-start md:self-auto">
-              <span className="flex items-center text-xs text-[#505f76] bg-white border border-[#E2E8F0] px-3 py-1.5 rounded-lg shadow-sm font-medium">
-                <Clock className="w-3.5 h-3.5 text-slate-400 mr-1.5" /> Última sincronização: <strong className="text-[#041627] ml-1">Hoje, 14:38</strong>
-              </span>
+              <LastSyncOnCityChoice />
               <button onClick={() => triggerBackendAnalysis(true)} className="p-2 bg-white border border-[#E2E8F0] rounded-lg text-slate-600 hover:text-[#041627] hover:bg-slate-50 transition-colors shadow-sm" title="Atualizar dados">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
