@@ -51,7 +51,8 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 "place_id" : place_id,
                 "review_id" : review_id,
                 "tipo_perigo" : alerta.get("tipo_perigo"),
-                "justificativa" : alerta.get("justificativa")
+                "justificativa" : alerta.get("justificativa"),
+                "resolvida" : False
             }
             batch.set(doc_ref, dados_alertas)
         await batch.commit()
@@ -167,10 +168,12 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 continue
             doc_ref = self.db.collection(self.deep_analysis_collection).document(place_id).collection("alerts").document(review_id)
             dados_alertas = {
-                "place_id" : place_id,
+                # place_id do ponto turístico (definido em deep_analysis_services); a cidade já está no caminho do documento
+                "place_id" : alerta.get("place_id") or place_id,
                 "review_id" : review_id,
                 "tipo_perigo" : alerta.get("tipo_perigo"),
-                "justificativa" : alerta.get("justificativa")
+                "justificativa" : alerta.get("justificativa"),
+                "resolvida" : False
             }
             batch.set(doc_ref, dados_alertas, merge=True)
         await batch.commit()
