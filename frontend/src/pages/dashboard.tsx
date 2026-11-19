@@ -25,6 +25,7 @@ import { GooglePlaceService } from '../services/GooglePlaceServices';
 import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import MonitoredSpots from '../components/MonitoredSpots';
+import SpotInfoPanel from '../components/SpotInfoPanel';
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -35,6 +36,12 @@ export default function Dashboard() {
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [spots, setSpots] = useState<TouristSpot[]>([]);
   const [mapMarkers, setMapMarkers] = useState<TouristSpotDashboard[]>([])
+  // Spot clicado no mapa (abre o painel de informações)
+  const [spotSelecionado, setSpotSelecionado] = useState<TouristSpotDashboard | null>(null);
+
+  const handleSpotClick = useCallback((spot: TouristSpotDashboard) => {
+    setSpotSelecionado(spot);
+  }, []);
   // Novos estados para o fluxo assíncrono com o Python e Firebase
   const [analysisStatus, setAnalysisStatus] = useState<string>('idle');
   const [dbAlertas, setDbAlertas] = useState<any[]>([]);
@@ -351,10 +358,20 @@ export default function Dashboard() {
           <div className="relative w-full h-[500px] sm:h-[560px] rounded-xl overflow-hidden border border-[#CBD5E1] bg-[#F4F6F8] shadow-inner select-none">
             <DashboardSpotsMap
               spots={mapMarkers} 
-              onSpotClick={() => {}} 
+              onSpotClick={handleSpotClick}
               height='100%'
               setSpots={setMapMarkers}
             />
+            {spotSelecionado && (
+              <SpotInfoPanel
+                spot={spotSelecionado}
+                alertas={alertasAtivos.filter(a =>
+                  a.spot_id === spotSelecionado.id ||
+                  (a.localidade || '') === (spotSelecionado.nome || spotSelecionado.name)
+                )}
+                onClose={() => setSpotSelecionado(null)}
+              />
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-4 w-full bg-white rounded-xl">
