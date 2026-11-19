@@ -53,7 +53,16 @@ class ApifyReviewsAdapter(ReviewProviderAdapter):
         if not dataset_id:
             dataset_id = getattr(run, "default_dataset_id",  None)
 
-        return self.client.dataset(dataset_id).iterate_items()
+        if not dataset_id:
+            return []
+
+        # Converte cada item cru do Apify em ReviewSchema (descarta os sem texto/id) e devolve uma lista
+        reviews : List[ReviewSchema] = []
+        for item in self.client.dataset(dataset_id).iterate_items():
+            review = self._to_review_schema(item)
+            if review:
+                reviews.append(review)
+        return reviews
 
     def _to_review_schema(self, item : dict):
         text = item.get("text")

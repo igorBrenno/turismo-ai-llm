@@ -3,11 +3,11 @@ import {
   AlertTriangle, MoreVertical, 
   MapPin, Shield, Home, CheckCircle2, Trash2, Clock, 
   RefreshCw, Radio, Sliders, Maximize,  
-  BarChart2, Check, Hourglass, Users, Flame, 
-  ArrowRight, ClipboardList, Filter, Accessibility, Loader2
+  Flame,
+  ClipboardList, Filter, Loader2
 } from 'lucide-react';
 
-// Imports do Material-UI para o botão do satélite
+
 import Button from '@mui/material/Button';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAlt';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,11 +18,15 @@ import UnderRisk from '../components/UnderRisk';
 import type { TouristSpot, TouristSpotDashboard } from '../models/Spot';
 import DashboardSpotsMap from '../components/DashboardMap';
 import CustomAlertsPanel from '../components/CustomAlertsPanel';
+import InfractionsByCategory from '../components/InfractionsByCategory';
+import { GooglePlaceService } from '../services/GooglePlaceServices';
 
 // Importações do Firebase para escutar em tempo real
 import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import MonitoredSpots from '../components/MonitoredSpots';
+import SpotInfoPanel from '../components/SpotInfoPanel';
+import LastSyncOnCityChoice from '../components/LastSyncOnCityChoice';
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -30,10 +34,15 @@ export default function Dashboard() {
 
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
   const [searchTerm] = useState('');
-  const [periodo, setPeriodo] = useState('Esta Semana');
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [spots, setSpots] = useState<TouristSpot[]>([]);
   const [mapMarkers, setMapMarkers] = useState<TouristSpotDashboard[]>([])
+  // Spot clicado no mapa (abre o painel de informações)
+  const [spotSelecionado, setSpotSelecionado] = useState<TouristSpotDashboard | null>(null);
+
+  const handleSpotClick = useCallback((spot: TouristSpotDashboard) => {
+    setSpotSelecionado(spot);
+  }, []);
   // Novos estados para o fluxo assíncrono com o Python e Firebase
   const [analysisStatus, setAnalysisStatus] = useState<string>('idle');
   const [dbAlertas, setDbAlertas] = useState<any[]>([]);
@@ -138,9 +147,6 @@ export default function Dashboard() {
     (alerta.problema || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const dadosGrafico = periodo === 'Esta Semana' 
-    ? { seguranca: { qtd: 68, p: '47.8%' }, higiene: { qtd: 42, p: '29.5%' }, acesso: { qtd: 32, p: '22.7%' } }
-    : { seguranca: { qtd: 245, p: '52.1%' }, higiene: { qtd: 198, p: '31.2%' }, acesso: { qtd: 110, p: '16.7%' } };
 
 
 
@@ -167,6 +173,39 @@ export default function Dashboard() {
 
     fetchMarkers()
   },[])
+
+  // Busca os spots da cidade no Google Places (são eles que vão para a análise profunda no backend)
+  const cityName = currentUser?.cityChoiceForAnalysis?.name;
+  useEffect(() => {
+    if (!cityName) return;
+    let cancelled = false;
+
+    const fetchCitySpots = async () => {
+      // O script do Google Maps é carregado pelo DashboardMap; espera ele ficar disponível
+      while (!cancelled && !(window as any).google?.maps?.importLibrary) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      if (cancelled) return;
+      await (window as any).google.maps.importLibrary('places');
+
+      const results = await GooglePlaceService.fetchSpots(cityName);
+      if (!cancelled) setSpots(results);
+    };
+
+    fetchCitySpots();
+    return () => { cancelled = true; };
+  }, [cityName]);
+
+  // Top 3 spots com maior danger_score (apenas os que têm risco > 0)
+  const coresZonasCriticas = [
+    { texto: 'text-[#ba1a1a]', fundo: 'bg-[#ba1a1a]', badge: 'bg-red-50 border-red-200' },
+    { texto: 'text-[#d97706]', fundo: 'bg-[#d97706]', badge: 'bg-amber-50 border-amber-200' },
+    { texto: 'text-[#505f76]', fundo: 'bg-[#505f76]', badge: 'bg-slate-100 border-slate-200' },
+  ];
+  const zonasCriticas = [...mapMarkers]
+    .filter(spot => (spot.danger_score ?? 0) > 0)
+    .sort((a, b) => (b.danger_score ?? 0) - (a.danger_score ?? 0))
+    .slice(0, 3);
 
 
   
@@ -210,15 +249,13 @@ export default function Dashboard() {
                 <span className="w-2 h-2 rounded-full bg-[#041627]"></span>
                 Painel Central de Controle
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-[#041627] tracking-tight">Monitoramento em Tempo Real</h2>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-[#041627] tracking-tight">Monitoramento</h2>
               <p className="text-sm text-[#505f76] mt-1 max-w-2xl">
-                Acompanhe indicadores territoriais agregados, fluxo de notificações da população e integridade dos sensores.
+                Acompanhe indicadores de ponto turisticos com o objetivo de identificar perigos turisticos.
               </p>
             </div>
             <div className="flex items-center gap-2 self-start md:self-auto">
-              <span className="flex items-center text-xs text-[#505f76] bg-white border border-[#E2E8F0] px-3 py-1.5 rounded-lg shadow-sm font-medium">
-                <Clock className="w-3.5 h-3.5 text-slate-400 mr-1.5" /> Última sincronização: <strong className="text-[#041627] ml-1">Hoje, 14:38</strong>
-              </span>
+              <LastSyncOnCityChoice />
               <button onClick={() => triggerBackendAnalysis(true)} className="p-2 bg-white border border-[#E2E8F0] rounded-lg text-slate-600 hover:text-[#041627] hover:bg-slate-50 transition-colors shadow-sm" title="Atualizar dados">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
@@ -320,10 +357,20 @@ export default function Dashboard() {
           <div className="relative w-full h-[500px] sm:h-[560px] rounded-xl overflow-hidden border border-[#CBD5E1] bg-[#F4F6F8] shadow-inner select-none">
             <DashboardSpotsMap
               spots={mapMarkers} 
-              onSpotClick={() => {}} 
+              onSpotClick={handleSpotClick}
               height='100%'
               setSpots={setMapMarkers}
             />
+            {spotSelecionado && (
+              <SpotInfoPanel
+                spot={spotSelecionado}
+                alertas={alertasAtivos.filter(a =>
+                  a.spot_id === spotSelecionado.id ||
+                  (a.localidade || '') === (spotSelecionado.nome || spotSelecionado.name)
+                )}
+                onClose={() => setSpotSelecionado(null)}
+              />
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-4 w-full bg-white rounded-xl">
@@ -372,78 +419,7 @@ export default function Dashboard() {
 
         {/* SECTION: ANALYTICS & CRITICAL ZONES */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 scroll-mt-24" id="analitico">
-          <div className="lg:col-span-2 bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F1F5F9] pb-4">
-              <div>
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#505f76] mb-0.5">
-                  <BarChart2 className="w-3.5 h-3.5 text-slate-500" /> Distribuição Temática
-                </div>
-                <h4 className="text-xl sm:text-2xl font-bold text-[#041627]">Infrações por Categoria</h4>
-                <p className="text-xs text-[#74777d] mt-0.5">Volume de ocorrências validadas por fiscalização</p>
-              </div>
-              <select 
-                value={periodo}
-                onChange={(e) => setPeriodo(e.target.value)}
-                className="border border-[#CBD5E1] rounded-lg px-3.5 py-1.5 text-xs font-medium bg-white text-[#44474c] focus:outline-none focus:ring-2 focus:ring-[#041627] cursor-pointer"
-              >
-                <option>Esta Semana</option>
-                <option>Este Mês</option>
-              </select>
-            </div>
-            
-            <div className="pt-4 pb-2">
-              <div className="flex items-end justify-around h-64 sm:h-72 px-4 sm:px-12 relative border-b border-[#E2E8F0]">
-                {/* Segurança */}
-                <div className="flex flex-col items-center gap-3 w-24 sm:w-28 group cursor-pointer h-full justify-end">
-                  <span className="text-xs font-bold text-[#041627] bg-slate-100 px-2 py-0.5 rounded group-hover:-translate-y-1 group-hover:bg-[#041627] group-hover:text-white transition-all">
-                    {dadosGrafico.seguranca.qtd} casos
-                  </span>
-                  <div className="w-full bg-[#041627] rounded-t-lg transition-all duration-300 group-hover:opacity-90 shadow-md" style={{ height: dadosGrafico.seguranca.p }}></div>
-                  <div className="text-center mt-1">
-                    <span className="text-xs text-[#041627] font-bold flex items-center justify-center gap-1"><Shield className="w-3 h-3"/> Segurança</span>
-                    <span className="text-[11px] text-[#505f76]">{dadosGrafico.seguranca.p} do total</span>
-                  </div>
-                </div>
-                {/* Higiene */}
-                <div className="flex flex-col items-center gap-3 w-24 sm:w-28 group cursor-pointer h-full justify-end">
-                  <span className="text-xs font-bold text-[#041627] bg-slate-100 px-2 py-0.5 rounded group-hover:-translate-y-1 group-hover:bg-[#505f76] group-hover:text-white transition-all">
-                    {dadosGrafico.higiene.qtd} casos
-                  </span>
-                  <div className="w-full bg-[#505f76] rounded-t-lg transition-all duration-300 group-hover:opacity-90 shadow-md" style={{ height: dadosGrafico.higiene.p }}></div>
-                  <div className="text-center mt-1">
-                    <span className="text-xs text-[#041627] font-bold flex items-center justify-center gap-1"><Trash2 className="w-3 h-3 text-[#505f76]"/> Higiene</span>
-                    <span className="text-[11px] text-[#505f76]">{dadosGrafico.higiene.p} do total</span>
-                  </div>
-                </div>
-                {/* Acesso */}
-                <div className="flex flex-col items-center gap-3 w-24 sm:w-28 group cursor-pointer h-full justify-end">
-                  <span className="text-xs font-bold text-[#041627] bg-slate-100 px-2 py-0.5 rounded group-hover:-translate-y-1 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                    {dadosGrafico.acesso.qtd} casos
-                  </span>
-                  <div className="w-full bg-[#93c5fd] hover:bg-blue-500 rounded-t-lg transition-all duration-300 shadow-md" style={{ height: dadosGrafico.acesso.p }}></div>
-                  <div className="text-center mt-1">
-                    <span className="text-xs text-[#041627] font-bold flex items-center justify-center gap-1"><Accessibility className="w-3 h-3 text-blue-600"/> Acesso</span>
-                    <span className="text-[11px] text-[#505f76]">{dadosGrafico.acesso.p} do total</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#F1F5F9]">
-              <div className="bg-[#F8FAFC] border border-[#E2E8F0] p-3 rounded-xl flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-[#041627] text-xs"><Check className="w-4 h-4"/></div>
-                <div><p className="text-[11px] text-[#505f76]">Resolvidos nesta semana</p><p className="text-sm font-bold text-[#041627]">118 casos (83%)</p></div>
-              </div>
-              <div className="bg-[#F8FAFC] border border-[#E2E8F0] p-3 rounded-xl flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-xs"><Hourglass className="w-4 h-4"/></div>
-                <div><p className="text-[11px] text-[#505f76]">Tempo médio resposta</p><p className="text-sm font-bold text-[#041627]">38 minutos</p></div>
-              </div>
-              <div className="bg-[#F8FAFC] border border-[#E2E8F0] p-3 rounded-xl flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center text-xs"><Users className="w-4 h-4"/></div>
-                <div><p className="text-[11px] text-[#505f76]">Agentes em ronda</p><p className="text-sm font-bold text-[#041627]">16 equipes</p></div>
-              </div>
-            </div>
-          </div>
+          <InfractionsByCategory />
 
           <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6 shadow-sm">
             <div>
@@ -455,45 +431,30 @@ export default function Dashboard() {
                 <span className="text-[11px] bg-red-100 text-red-800 font-extrabold px-2.5 py-0.5 rounded-full">Top 3</span>
               </div>
               <div className="space-y-5">
-                <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
-                  <div className="flex justify-between items-center text-xs font-semibold mb-2">
-                    <span className="flex items-center gap-1.5 text-[#041627] font-bold"><MapPin className="w-3.5 h-3.5 text-[#ba1a1a]" /> Praia do Sol</span>
-                    <span className="text-[#ba1a1a] font-bold bg-red-50 px-2 py-0.5 rounded border border-red-200">92% Risco</span>
-                  </div>
-                  <div className="w-full bg-[#E2E8F0] h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-[#ba1a1a] h-full rounded-full" style={{ width: '92%' }}></div>
-                  </div>
-                </div>
-                <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
-                  <div className="flex justify-between items-center text-xs font-semibold mb-2">
-                    <span className="flex items-center gap-1.5 text-[#041627] font-bold"><MapPin className="w-3.5 h-3.5 text-[#d97706]" /> Trilha do Mirante</span>
-                    <span className="text-[#d97706] font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">74% Risco</span>
-                  </div>
-                  <div className="w-full bg-[#E2E8F0] h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-[#d97706] h-full rounded-full" style={{ width: '74%' }}></div>
-                  </div>
-                </div>
-                <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
-                  <div className="flex justify-between items-center text-xs font-semibold mb-2">
-                    <span className="flex items-center gap-1.5 text-[#041627] font-bold"><MapPin className="w-3.5 h-3.5 text-[#505f76]" /> Museu Histórico</span>
-                    <span className="text-[#505f76] font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">48% Risco</span>
-                  </div>
-                  <div className="w-full bg-[#E2E8F0] h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-[#505f76] h-full rounded-full" style={{ width: '48%' }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="relative rounded-xl overflow-hidden p-5 group cursor-pointer shadow-md border border-[#041627] bg-gradient-to-br from-[#041627] via-[#0a2540] to-[#1e3a8a] text-white">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-extrabold tracking-widest uppercase text-blue-200 flex items-center gap-1.5"><Flame className="w-3 h-3 text-amber-400" /> Visão Espacial</span>
-                  <h5 className="text-sm font-bold mt-1">Camada de Calor (Heatmap)</h5>
-                </div>
-                <button className="bg-white px-3.5 py-2 rounded-lg text-xs font-bold text-[#041627] shadow hover:bg-slate-100 transition-all flex items-center gap-1.5 whitespace-nowrap">
-                  Ativar <ArrowRight className="w-3 h-3" />
-                </button>
+                {zonasCriticas.length === 0 ? (
+                  <p className="text-xs text-[#74777d] text-center py-6">Nenhuma zona com risco identificado.</p>
+                ) : (
+                  zonasCriticas.map((spot, index) => {
+                    const cor = coresZonasCriticas[index];
+                    const score = spot.danger_score ?? 0;
+                    return (
+                      <div key={spot.id} className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
+                        <div className="flex justify-between items-center text-xs font-semibold mb-2 gap-2">
+                          <span className="flex items-center gap-1.5 text-[#041627] font-bold min-w-0">
+                            <MapPin className={`w-3.5 h-3.5 shrink-0 ${cor.texto}`} />
+                            <span className="truncate">{spot.nome || spot.name || 'Local Sem Nome'}</span>
+                          </span>
+                          <span className={`${cor.texto} ${cor.badge} font-bold px-2 py-0.5 rounded border whitespace-nowrap`}>
+                            {Math.round(score)}% Risco
+                          </span>
+                        </div>
+                        <div className="w-full bg-[#E2E8F0] h-2.5 rounded-full overflow-hidden">
+                          <div className={`${cor.fundo} h-full rounded-full`} style={{ width: `${Math.min(score, 100)}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

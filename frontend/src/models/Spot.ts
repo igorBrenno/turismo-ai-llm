@@ -28,4 +28,11 @@ export interface TouristSpotDashboard {
   lat : number;
   lng : number;
   alert : boolean;
+  // Campos salvos pelo backend em deep_analysis_status/{cidade}/spots
+  nome?: string;
+  danger_score?: number;
+  resumo_ia?: string;
+  spot_id?: string;
+  city_place_id?: string;
+  ultima_varredura?: any; // Firestore Timestamp
 }

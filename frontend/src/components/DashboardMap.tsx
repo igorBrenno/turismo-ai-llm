@@ -22,6 +22,9 @@ export default function DashboardSpotsMap({
   const auth = useAuth();
   const googleMapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  // Guarda sempre a versão mais recente do callback (evita closure velha dentro dos listeners do mapa)
+  const onSpotClickRef = useRef(onSpotClick);
+  onSpotClickRef.current = onSpotClick;
   const lat = auth.currentUser?.cityChoiceForAnalysis?.lat;
   const lng = auth.currentUser?.cityChoiceForAnalysis?.lng;
 
@@ -155,11 +158,14 @@ export default function DashboardSpotsMap({
               map,
               title: spot.name,
               content: pinDiv,
+              gmpClickable: true, // sem isso o AdvancedMarker não dispara o gmp-click
             });
 
-            marker.addEventListener('gmp-click', () => {
-              if (onSpotClick) onSpotClick(spot);
-            });
+            const handleClick = () => onSpotClickRef.current?.(spot);
+            marker.addEventListener('gmp-click', handleClick);
+            // Fallback: clique direto na bolinha (caso a versão da API não dispare o gmp-click)
+            pinDiv.style.cursor = 'pointer';
+            pinDiv.addEventListener('click', handleClick);
 
             markersRef.current.push(marker);
           });
