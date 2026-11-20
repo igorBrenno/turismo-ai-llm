@@ -189,3 +189,10 @@ async def run_alert_rules(
     run_id = await repo.create_run(uid=uid, total_locais=len(request.spots))
     background_tasks.add_task(executar_regras_de_alerta, run_id, uid, request, repo, review_adapter, ai_analyzer_adapter)
     return {"run_id": run_id}
+
+
+@app.get("/api/apify-limits")
+def get_apify_limits(
+    review_adapter: ReviewProviderAdapter = Depends(get_reviews_adapter)
+):
+    return review_adapter.get_usage_limits()
