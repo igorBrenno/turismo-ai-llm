@@ -20,7 +20,7 @@ import DashboardSpotsMap from '../components/DashboardMap';
 import CustomAlertsPanel from '../components/CustomAlertsPanel';
 import InfractionsByCategory from '../components/InfractionsByCategory';
 import { GooglePlaceService } from '../services/GooglePlaceServices';
-
+import ApifyLimitsCard from '../components/ApifyLimitCard';
 // Importações do Firebase para escutar em tempo real
 import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -163,6 +163,7 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+
     const fetchMarkers = async () => {
       const data = await loadMarkers()
 
@@ -171,7 +172,10 @@ export default function Dashboard() {
       }
     }
 
-    fetchMarkers()
+    fetchMarkers();
+    
+
+
   },[])
 
   // Busca os spots da cidade no Google Places (são eles que vão para a análise profunda no backend)
@@ -407,6 +411,8 @@ export default function Dashboard() {
         </section>
 
         <CustomAlertsPanel spots={spots} />
+
+        <ApifyLimitsCard/>
 
         {/* SECTION: ANALYTICS & CRITICAL ZONES */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 scroll-mt-24" id="analitico">
