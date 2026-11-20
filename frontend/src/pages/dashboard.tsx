@@ -256,9 +256,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-2 self-start md:self-auto">
               <LastSyncOnCityChoice />
-              <button onClick={() => triggerBackendAnalysis(true)} className="p-2 bg-white border border-[#E2E8F0] rounded-lg text-slate-600 hover:text-[#041627] hover:bg-slate-50 transition-colors shadow-sm" title="Atualizar dados">
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
+              
             </div>
           </div>
 
@@ -279,7 +277,7 @@ export default function Dashboard() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-red-50 text-[#ba1a1a]">
                   <Flame className="w-3 h-3" /> Atenção Imediata
                 </span>
-                <span className="text-[#74777d]">{alertasAtivos.length} críticas</span>
+                <span className="text-[#74777d]">{alertasAtivos.length} Alertas no total</span>
               </div>
             </div>
 
@@ -298,18 +296,14 @@ export default function Dashboard() {
                   <Shield className="w-6 h-6" />
                 </div>
               </div>
-              <div className="pt-4 mt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1 text-[#505f76] font-semibold">
-                  <RefreshCw className="w-3.5 h-3.5" /> Índice Estável
-                </div>
-                <span className="text-[#74777d]">Em 3 distritos</span>
-              </div>
+              
+               
             </div>
 
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Lugares Turisticos Monitoradas</p>
+                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Lugares Turisticos Monitorados</p>
                   <MonitoredSpots />
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center transition-transform group-hover:scale-105">
@@ -318,9 +312,9 @@ export default function Dashboard() {
               </div>
               <div className="pt-4 mt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 100% Online
+                  {/* <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 100% Online */}
                 </div>
-                <span className="text-[#74777d]">28 sensores ativos</span>
+                {/* <span className="text-[#74777d]">Adicionar algo para aqui</span> */}
               </div>
             </div>
           </div>
@@ -342,14 +336,11 @@ export default function Dashboard() {
                 <button className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#041627] text-white">Todos</button>
                 <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Alto Risco</button>
                 <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Médio</button>
+                <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Baixo</button>
               </div>
               <div className="flex items-center gap-2">
-                <button className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg hover:bg-[#F1F5F9] text-[#44474c] text-xs font-semibold flex items-center gap-1.5 transition-colors">
-                  <Sliders className="w-3.5 h-3.5 text-slate-500" /> Camadas
-                </button>
-                <button className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg hover:bg-[#F1F5F9] text-[#44474c] text-xs font-semibold flex items-center gap-1.5 transition-colors">
-                  <Maximize className="w-3.5 h-3.5 text-slate-500" /> Tela Cheia
-                </button>
+                
+                
               </div>
             </div>
           </div>
