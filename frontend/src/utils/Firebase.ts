@@ -29,7 +29,15 @@ export async function setUserDocumentOnRegister( userCredential : any, city : ci
     console.log(`Documento salvo no firebase com id: ${userCredential.user.uid}`)
 }
 
-export const userAuthChange = async (firebaseUser : any, setCurrentUser : any) => {
+export async function updateUserCityChoice(userUid : string, city : cityChoice){
+    const docRef = doc(db, 'users', userUid)
+    await setDoc(docRef, {
+        cityChoiceForAnalysis : city,
+        updatedAt : new Date().toISOString(),
+    }, { merge : true })
+}
+
+export const userAuthChange =async (firebaseUser : any, setCurrentUser : any) => {
     if(firebaseUser){
         const data = await getUserDocument(firebaseUser.uid)
         const cityChoice = data?.cityChoiceForAnalysis

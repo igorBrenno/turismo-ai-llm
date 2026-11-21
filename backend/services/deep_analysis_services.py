@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from google.cloud import firestore
 from adapters.google_places.google_places import GooglePlacesAdapter
 from collections import defaultdict
+import time
 class CityDeepAnalysis:
     def __init__(self, db_repo: FirebaseReviewRepository, apify_adapter, google_adapter, llm_adapter):
         self.db = db_repo
@@ -31,8 +32,12 @@ class CityDeepAnalysis:
         
     async def execute_heavy_analysis(self, place_id: str, city_name: str, spot_ids: list, spot_info: list):
         try:
+            inicio_total = time.perf_counter()
+
             # 1. Puxa os dados do Apify
+            inicio = time.perf_counter()
             reviews = self.apify.fetch_reviews(spot_ids, limit=30)
+            print(f"⏱️ [TIMER] Scraping dos place_ids ({len(spot_ids)} spots, {len(reviews or [])} reviews): {time.perf_counter() - inicio:.2f}s")
             
             if not reviews:
                 print(f"[AVISO] Nenhum review encontrado para {city_name}.")
@@ -55,6 +60,7 @@ class CityDeepAnalysis:
             all_alerts_city = []
             
             # 3. A IA analisa CADA SPOT individualmente
+            inicio = time.perf_counter()
             for spot_id, spot_reviews in review_per_spot.items():
                 print(f"🧠 IA Analisando spot: {spot_id}...")
                 
@@ -71,8 +77,11 @@ class CityDeepAnalysis:
                         alerta["place_id"] = spot_id
                         all_alerts_city.append(alerta)
                         
+            print(f"⏱️ [TIMER] Análise da IA ({len(review_per_spot)} spots): {time.perf_counter() - inicio:.2f}s")
+
             updated_spot_info = list(spot_info_dict.values())
             
+            inicio = time.perf_counter()
             # 4. Salva Spots (com lat, lng e scores da IA) + Reviews em UMA SÓ VEZ
             # <-- CORRIGIDO: Passando a lista nova (updated_spot_info) que tem as notas da IA
             await self.db.save_spots_and_reviews(place_id, reviews, updated_spot_info)
@@ -89,9 +98,12 @@ class CityDeepAnalysis:
             if all_alerts_city:
                 await self.db.save_alerts_deep_analysis(place_id, all_alerts_city)
             
+            print(f"⏱️ [TIMER] Salvamento no Firebase: {time.perf_counter() - inicio:.2f}s")
+
             # 7. Libera o banco mudando para idle (Isso vai avisar o React!)
             await self.db.update_deep_analysis(place_id, "idle")
             print(f"[SUCESSO] Análise da cidade {city_name} concluída.")
+            print(f"⏱️ [TIMER] Tempo total da análise: {time.perf_counter() - inicio_total:.2f}s")
             
         except Exception as e:
             print(f"[ERRO] Falha no processamento de {place_id}: {e}")

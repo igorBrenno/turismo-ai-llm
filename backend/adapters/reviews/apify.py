@@ -1,7 +1,7 @@
 from .base import ReviewProviderAdapter
 from apify_client import ApifyClient
 from models.review import ReviewSchema
-from typing import List, Union, Dict
+from typing import Any, List, Union, Dict
 
 class ApifyReviewsAdapter(ReviewProviderAdapter):
 
@@ -78,3 +78,38 @@ class ApifyReviewsAdapter(ReviewProviderAdapter):
             text = text,
             date = item.get("publishedAtDate"),
         )
+
+    def get_usage_limits(self) -> Dict[str, Any]:
+        """Retorna o consumo atual e o saldo restante em USD da conta Apify."""
+        try:
+            limits_data = self.client.user("me").limits()
+
+            # apify-client >= 2 retorna um modelo Pydantic; versões antigas retornam dict
+            if hasattr(limits_data, "model_dump"):
+                limits_data = limits_data.model_dump(by_alias=True)
+            limits_data = limits_data or {}
+
+            current = limits_data.get("current") or {}
+            limits = limits_data.get("limits") or {}
+
+            gasto_usd = float(current.get("monthlyUsageUsd") or 0.0)
+            limite_usd = float(limits.get("maxMonthlyUsageUsd") or 0.0)
+            restante_usd = max(0.0, limite_usd - gasto_usd)
+            porcentagem = round((gasto_usd / limite_usd) * 100, 1) if limite_usd > 0 else 0.0
+
+            return {
+                "gasto_atual_usd": round(gasto_usd, 4),
+                "limite_mensal_usd": round(limite_usd, 2),
+                "saldo_restante_usd": round(restante_usd, 4),
+                "porcentagem_usada": porcentagem,
+                "status": "ok" if restante_usd > 0.20 else "low_balance",
+            }
+        except Exception as e:
+            print(f"[ERRO APIFY LIMITS] Falha ao consultar saldo: {e}")
+            return {
+                "gasto_atual_usd": 0.0,
+                "limite_mensal_usd": 0.0,
+                "saldo_restante_usd": 0.0,
+                "porcentagem_usada": 0.0,
+                "status": "error",
+            }
