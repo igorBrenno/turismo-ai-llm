@@ -4,6 +4,7 @@ import {
 import { auth, db } from '../firebaseConfig';
 import type { AlertRule, AlertRun, AlertTrigger, AlertTriggerStatus } from '../models/AlertRule';
 import type { TouristSpot } from '../models/Spot';
+import type { cityChoice } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -17,8 +18,16 @@ export class AlertRulesService {
     });
   }
 
-  public static async createRule(uid: string, nome: string, criterio: string) {
-    await addDoc(rulesCollection(uid), { nome, criterio, ativo: true, createdAt: serverTimestamp() });
+  public static async createRule(uid: string, nome: string, criterio: string, city: cityChoice, reporterEmail: string) {
+    await addDoc(rulesCollection(uid), {
+      nome,
+      criterio,
+      ativo: true,
+      city_place_id: city.placeId,
+      city_name: city.name,
+      reporter_email: reporterEmail,
+      createdAt: serverTimestamp(),
+    });
   }
 
   public static async setRuleActive(uid: string, ruleId: string, ativo: boolean) {
@@ -48,14 +57,18 @@ export class AlertRulesService {
   }
 
   // ---------- Execução (backend) ----------
-  public static async startRun(spots: TouristSpot[]): Promise<string> {
+  // cityPlaceId: só as regras dessa cidade são aplicadas aos comentários dos spots
+  public static async startRun(spots: TouristSpot[], cityPlaceId: string): Promise<string> {
     const token = await auth.currentUser?.getIdToken();
     if (!token) throw new Error('Usuário não autenticado.');
 
     const response = await fetch(`${API_URL}/api/alert-rules/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ spots: spots.map((s) => ({ place_id: s.id, name: s.name })) }),
+      body: JSON.stringify({
+        spots: spots.map((s) => ({ place_id: s.id, name: s.name })),
+        city_place_id: cityPlaceId,
+      }),
     });
     if (!response.ok) throw new Error(`Erro ao iniciar verificação (${response.status}).`);
 
