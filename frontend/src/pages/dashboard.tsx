@@ -22,7 +22,7 @@ import InfractionsByCategory from '../components/InfractionsByCategory';
 import { GooglePlaceService } from '../services/GooglePlaceServices';
 import ApifyLimitsCard from '../components/ApifyLimitCard';
 // Importações do Firebase para escutar em tempo real
-import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, collection } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import MonitoredSpots from '../components/MonitoredSpots';
 import SpotInfoPanel from '../components/SpotInfoPanel';
@@ -150,33 +150,25 @@ export default function Dashboard() {
 
 
 
-  const loadMarkers = async () => {
-    const cityId = auth.currentUser?.cityChoiceForAnalysis?.placeId
-    if (!cityId) return;
-    const dbRef = collection(db, 'deep_analysis_status', cityId, 'spots');
-    const snapshot = await getDocs(dbRef);
-    const data = snapshot.docs.map(doc => ({
-      id : doc.id,
-      ...doc.data()
-    }as TouristSpotDashboard)) 
-    return data
-  }
-
+  // Ouvinte em tempo real dos spots do mapa: quando a deep analysis grava/atualiza
+  // os spots no Firestore, o mapa é atualizado automaticamente
+  const markersCityId = currentUser?.cityChoiceForAnalysis?.placeId;
   useEffect(() => {
-
-    const fetchMarkers = async () => {
-      const data = await loadMarkers()
-
-      if( data){
-        setMapMarkers(data)
-      }
+    if (!markersCityId) {
+      setMapMarkers([]);
+      return;
     }
-
-    fetchMarkers();
-    
-
-
-  },[])
+    const dbRef = collection(db, 'deep_analysis_status', markersCityId, 'spots');
+    const unsubscribe = onSnapshot(dbRef, (snapshot) => {
+      setMapMarkers(snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as TouristSpotDashboard)));
+    }, (error) => {
+      console.error("Erro ao escutar spots do mapa:", error);
+    });
+    return () => unsubscribe();
+  }, [markersCityId]);
 
   // Busca os spots da cidade no Google Places (são eles que vão para a análise profunda no backend)
   const cityName = currentUser?.cityChoiceForAnalysis?.name;
