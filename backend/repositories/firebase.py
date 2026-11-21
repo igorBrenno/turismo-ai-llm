@@ -52,7 +52,8 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 "review_id" : review_id,
                 "tipo_perigo" : alerta.get("tipo_perigo"),
                 "justificativa" : alerta.get("justificativa"),
-                "resolvida" : False
+                "resolvida" : False,
+                "reporter" : "AI_LLM"
             }
             batch.set(doc_ref, dados_alertas)
         await batch.commit()
@@ -173,7 +174,8 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 "review_id" : review_id,
                 "tipo_perigo" : alerta.get("tipo_perigo"),
                 "justificativa" : alerta.get("justificativa"),
-                "resolvida" : False
+                "resolvida" : False,
+                "reporter" : "AI_LLM"
             }
             batch.set(doc_ref, dados_alertas, merge=True)
         await batch.commit()
@@ -271,6 +273,7 @@ class FirebaseAlertRepository(AlertRepository):
                 "review_data" : review.date,
                 "trecho" : resultado.get("trecho", ""),
                 "status" : "novo",
+                "reporter" : "ocorrencia",
                 "created_at" : firestore.SERVER_TIMESTAMP,
             })
             disparos += 1
