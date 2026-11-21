@@ -89,7 +89,7 @@ export default function ApifyLimitsCard({ refreshTrigger }: ApifyLimitsCardProps
             }`}
           />
           <span className="text-xs font-semibold uppercase tracking-wider text-[#54647a]">
-            Cota Apify Scraper
+            Cota do Scraper que vasculha reviews
           </span>
         </div>
 
