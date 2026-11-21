@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { collection,getDocs, QuerySnapshot } from "firebase/firestore"
+import { collection, getDocs } from "firebase/firestore"
 import { db } from "../firebaseConfig"
 export default function UnderRisk(){
     const [underRisk, setUnderRisk] = useState(0)

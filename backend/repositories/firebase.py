@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Any, List, Set
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
-from repositories.base import ReviewRepositorie, AlertRepository
+from repositories.base import ReviewRepositorie, AlertRepository, OccurrenceRepository
 from models.review import ReviewSchema
 from config.firebase import init_firebase
 from datetime import datetime, timezone
@@ -184,6 +184,19 @@ class FirebaseReviewRepository(ReviewRepositorie):
         print(f'[FIREBASE ALERT] {len(alerts)} novos alertas registrados para o local: {place_id}')
 
 
+class FirebaseOccurrenceRepository(OccurrenceRepository):
+    def __init__(self):
+        self.db = init_firebase()
+        self.deep_analysis_collection = "deep_analysis_status"
+
+    async def save_occurrence(self, city_place_id : str, data : Dict[str, Any]) -> str:
+        # Mesmo lugar dos alertas da IA, para aparecer no dashboard da cidade; id automático
+        alerts_ref = self.db.collection(self.deep_analysis_collection).document(city_place_id).collection("alerts")
+        _, doc_ref = await alerts_ref.add({ **data, "created_at" : firestore.SERVER_TIMESTAMP })
+        print(f"[OCORRÊNCIA] Registrada {doc_ref.id} na cidade {city_place_id}")
+        return doc_ref.id
+
+
 def _doc_id(*parts : str) -> str:
     # ids do Firestore não podem conter "/"
     return "_".join(parts).replace("/", "_")
@@ -199,6 +212,7 @@ class FirebaseAlertRepository(AlertRepository):
         self.checks_collection = "rule_checks"
         self.triggers_collection = "alert_triggers"
         self.runs_collection = "alert_runs"
+        self.deep_analysis_collection = "deep_analysis_status"
 
     async def get_active_rules(self, uid : str) -> List[Dict[str, Any]]:
         rules_ref = self.db.collection(self.users_collection).document(uid).collection(self.rules_subcollection)
@@ -263,6 +277,8 @@ class FirebaseAlertRepository(AlertRepository):
 
             review = reviews_by_id[review_id]
             place_id = place_by_review.get(review_id, "")
+            city_place_id = rule.get("city_place_id")
+            reporter_email = rule.get("reporter_email")
             batch.set(self.db.collection(self.triggers_collection).document(doc_id), {
                 "owner_uid" : uid,
                 "rule_id" : rule["id"],
@@ -276,8 +292,29 @@ class FirebaseAlertRepository(AlertRepository):
                 "trecho" : resultado.get("trecho", ""),
                 "status" : "novo",
                 "reporter" : "ocorrencia",
+                "reporter_email" : reporter_email,
+                "city_place_id" : city_place_id,
                 "created_at" : firestore.SERVER_TIMESTAMP,
             })
+
+            # Registra também nos alertas da cidade da regra, junto com os alertas da IA.
+            # O id inclui a regra para não sobrescrever o alerta da IA do mesmo comentário.
+            if city_place_id:
+                city_alert_ref = self.db.collection(self.deep_analysis_collection).document(city_place_id).collection("alerts").document(doc_id)
+                batch.set(city_alert_ref, {
+                    "place_id" : place_id,
+                    "review_id" : review_id,
+                    "tipo_perigo" : "OUTRO",
+                    "justificativa" : resultado.get("trecho", "") or review.text,
+                    "rule_id" : rule["id"],
+                    "rule_nome" : rule.get("nome", ""),
+                    "resolvida" : False,
+                    "reporter" : "ocorrencia",
+                    "reporter_email" : reporter_email,
+                    "reporter_uid" : uid,
+                    "danger_points_added" : 0,
+                    "created_at" : firestore.SERVER_TIMESTAMP,
+                }, merge=True)
             disparos += 1
 
         await batch.commit()

@@ -25,7 +25,6 @@ export default function ProfileSettings() {
   // Estados de Informações Pessoais
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Estados de Segurança (Alteração de Senha)

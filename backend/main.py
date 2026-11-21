@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from openai import OpenAI
-from repositories.firebase import FirebaseReviewRepository, FirebaseAlertRepository
-from repositories.base import ReviewRepositorie, AlertRepository
+from repositories.firebase import FirebaseReviewRepository, FirebaseAlertRepository, FirebaseOccurrenceRepository
+from repositories.base import ReviewRepositorie, AlertRepository, OccurrenceRepository
 import os
 import json
 from dotenv import load_dotenv
@@ -14,8 +14,10 @@ from adapters.reviews.apify import ApifyReviewsAdapter
 from adapters.reviews.base import ReviewProviderAdapter
 from adapters.ai.base import AIAnalizerProviderAdapter
 from adapters.ai.open_ai import OpenAIAdapter
-from config.auth import get_current_uid
+from config.auth import CurrentUser, get_current_uid, get_current_user
 from models.alert import RunAlertRulesRequest
+from models.occurrence import CreateOccurrenceRequest
+from services.occurrence_service import register_occurrence
 from services.alert_runner import executar_regras_de_alerta
 from adapters.google_places.google_places import GooglePlacesAdapter
 
@@ -47,6 +49,10 @@ def get_review_repositorie() -> ReviewRepositorie:
 
 def get_alert_repository() -> AlertRepository:
     return FirebaseAlertRepository()
+
+
+def get_occurrence_repository() -> OccurrenceRepository:
+    return FirebaseOccurrenceRepository()
 
 
 
@@ -189,6 +195,17 @@ async def run_alert_rules(
     run_id = await repo.create_run(uid=uid, total_locais=len(request.spots))
     background_tasks.add_task(executar_regras_de_alerta, run_id, uid, request, repo, review_adapter, ai_analyzer_adapter)
     return {"run_id": run_id}
+
+
+@app.post("/api/occurrences", status_code=201)
+async def create_occurrence(
+    request : CreateOccurrenceRequest,
+    user : CurrentUser = Depends(get_current_user),
+    repo : OccurrenceRepository = Depends(get_occurrence_repository),
+    ):
+    # Ocorrência registrada por uma pessoa: vai para os alertas da cidade sem passar pela IA
+    occurrence_id = await register_occurrence(request, user, repo)
+    return {"id": occurrence_id}
 
 
 @app.get("/api/apify-limits")

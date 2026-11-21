@@ -8,7 +8,6 @@ interface SpotsMapDashboardProps {
   selectedSpot?: TouristSpotDashboard | null;
   onSpotClick?: (spot: TouristSpotDashboard) => void;
   height?: string;
-  setSpots?: any; // Mantido para não quebrar a tipagem com o pai
 }
 
 export default function DashboardSpotsMap({ 
@@ -16,7 +15,6 @@ export default function DashboardSpotsMap({
   selectedSpot, 
   onSpotClick, 
   height = "400px",
-  setSpots // Não será mais usado aqui, os dados já chegam prontos do Firebase
 }: SpotsMapDashboardProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const auth = useAuth();

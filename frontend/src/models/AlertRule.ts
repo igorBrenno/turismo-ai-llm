@@ -3,6 +3,9 @@ export interface AlertRule {
   nome: string;
   criterio: string;
   ativo: boolean;
+  city_place_id?: string;
+  city_name?: string;
+  reporter_email?: string;
 }
 
 export type AlertTriggerStatus = 'novo' | 'visto' | 'resolvido';

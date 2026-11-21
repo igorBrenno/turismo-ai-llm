@@ -76,7 +76,7 @@ export default function SpotInfoPanel({ spot, alertas = [], onClose }: SpotInfoP
               <ShieldAlert className={`w-3.5 h-3.5 ${risco.texto}`} /> Índice de Perigo
             </span>
             <span className={`${risco.texto} ${risco.badge} border font-bold px-2 py-0.5 rounded text-[11px]`}>
-              {Math.round(score)}% · {risco.label}
+              {Math.round(score)} pts / 100 reviews · {risco.label}
             </span>
           </div>
           <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">

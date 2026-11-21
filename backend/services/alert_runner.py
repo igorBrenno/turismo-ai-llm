@@ -9,6 +9,13 @@ from repositories.base import AlertRepository
 TAMANHO_DO_LOTE = 25
 
 
+def regras_da_cidade(rules : list[dict], city_place_id : str | None) -> list[dict]:
+    # Regras sem cidade valem para qualquer cidade; as demais só para a própria cidade
+    if not city_place_id:
+        return rules
+    return [ rule for rule in rules if rule.get("city_place_id") in (None, "", city_place_id) ]
+
+
 def dividir_em_lotes(lista : list, tamanho_lote : int):
     for i in range(0, len(lista), tamanho_lote):
         yield lista[i:i + tamanho_lote]
@@ -24,7 +31,7 @@ async def executar_regras_de_alerta(
 ):
     # Roda em segundo plano: o front acompanha o progresso pelo documento alert_runs/{run_id}
     try:
-        rules = await repo.get_active_rules(uid)
+        rules = regras_da_cidade(await repo.get_active_rules(uid), request.city_place_id)
         if not rules:
             await repo.update_run(run_id, { "status" : "concluido", "finished_at" : firestore.SERVER_TIMESTAMP })
             return

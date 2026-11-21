@@ -14,6 +14,14 @@ class ReviewRepositorie(ABC):
         # salva dados de analises no banco de dados
         pass
 
+class OccurrenceRepository(ABC):
+
+    @abstractmethod
+    async def save_occurrence(self, city_place_id : str, data : Dict[str, Any]) -> str:
+        # registra uma ocorrência feita por uma pessoa nos alertas da cidade; retorna o id criado
+        pass
+
+
 class AlertRepository(ABC):
 
     @abstractmethod

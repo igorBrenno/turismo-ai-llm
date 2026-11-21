@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { BellRing, Plus, Trash2 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { BellRing, MapPin, Plus, Trash2 } from 'lucide-react';
+import { useAuth, type cityChoice } from '../contexts/AuthContext';
+import CityAutocompleteInput from '../components/CityAutocompleteInput';
+import OccurrenceForm from '../components/OccurrenceForm';
 import { AlertRulesService } from '../services/AlertRulesService';
 import type { AlertRule } from '../models/AlertRule';
 
@@ -11,6 +13,7 @@ export default function AlertRules() {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [nome, setNome] = useState('');
   const [criterio, setCriterio] = useState('');
+  const [city, setCity] = useState<cityChoice | null>(currentUser?.cityChoiceForAnalysis ?? null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -21,12 +24,12 @@ export default function AlertRules() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uid || !nome.trim() || !criterio.trim()) return;
+    if (!uid || !currentUser?.email || !city?.placeId || !nome.trim() || !criterio.trim()) return;
 
     setSaving(true);
     setErrorMessage('');
     try {
-      await AlertRulesService.createRule(uid, nome.trim(), criterio.trim());
+      await AlertRulesService.createRule(uid, nome.trim(), criterio.trim(), city, currentUser.email);
       setNome('');
       setCriterio('');
     } catch (error) {
@@ -54,9 +57,18 @@ export default function AlertRules() {
           <span className="w-2 h-2 rounded-full bg-[#041627]"></span>
           {currentUser?.cityChoiceForAnalysis?.name ?? 'Sua cidade'}
         </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#041627] tracking-tight">Meus Alertas</h2>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#041627] tracking-tight">Alertas</h2>
         <p className="text-sm text-[#505f76] mt-1 max-w-2xl">
-          Descreva o que a IA deve procurar nos comentários dos pontos da sua cidade. Depois, use o botão
+          Registre ocorrências que você presenciou ou recebeu, ou configure buscas para a IA procurar nos comentários dos pontos turísticos.
+        </p>
+      </div>
+
+      <OccurrenceForm />
+
+      <div className="pt-2">
+        <h3 className="text-sm font-bold text-[#041627] uppercase tracking-wider">Buscas com IA</h3>
+        <p className="text-xs text-[#505f76] mt-1 max-w-2xl">
+          Descreva o que a IA deve procurar nos comentários dos pontos da cidade. Depois, use o botão
           "Verificar novos comentários" no Dashboard para encontrar os comentários que se encaixam.
         </p>
       </div>
@@ -87,22 +99,27 @@ export default function AlertRules() {
           />
           <p className="text-[11px] text-[#74777d]">A IA responderá "sim" ou "não" para cada comentário com base neste critério.</p>
         </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-[#041627] tracking-wide" htmlFor="alertCity">Cidade</label>
+          <CityAutocompleteInput id="alertCity" value={city} onChange={setCity} disabled={saving} />
+          <p className="text-[11px] text-[#74777d]">Os alertas encontrados por esta regra serão registrados nesta cidade.</p>
+        </div>
         {errorMessage && <p className="text-xs text-[#ba1a1a] font-semibold">{errorMessage}</p>}
         <button
           type="submit"
-          disabled={saving || !nome.trim() || !criterio.trim()}
+          disabled={saving || !nome.trim() || !criterio.trim() || !city?.placeId}
           className="bg-[#041627] hover:bg-[#1a2b3c] text-white font-bold text-xs rounded-lg py-3 px-6 transition-all shadow-sm uppercase tracking-widest inline-flex items-center gap-2 disabled:opacity-60"
         >
-          <Plus className="w-4 h-4" /> {saving ? 'Salvando...' : 'Criar alerta'}
+          <Plus className="w-4 h-4" /> {saving ? 'Salvando...' : 'Criar busca'}
         </button>
       </form>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-bold text-[#041627] uppercase tracking-wider">Alertas configurados ({rules.length})</h3>
+        <h3 className="text-sm font-bold text-[#041627] uppercase tracking-wider">Buscas configuradas ({rules.length})</h3>
 
         {rules.length === 0 && (
           <div className="bg-white border border-dashed border-[#c4c6cd] rounded-xl p-8 text-center text-sm text-[#505f76]">
-            Nenhum alerta criado ainda.
+            Nenhuma busca criada ainda.
           </div>
         )}
 
@@ -114,6 +131,10 @@ export default function AlertRules() {
             <div className="flex-grow min-w-0">
               <p className={`font-bold ${rule.ativo ? 'text-[#041627]' : 'text-slate-400'}`}>{rule.nome}</p>
               <p className="text-sm text-[#505f76] mt-0.5 break-words">{rule.criterio}</p>
+              <p className="text-[11px] text-[#74777d] mt-1.5 flex items-center gap-1">
+                <MapPin className="w-3 h-3 shrink-0" />
+                {rule.city_name ?? 'Sem cidade definida (vale para qualquer cidade)'}
+              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
