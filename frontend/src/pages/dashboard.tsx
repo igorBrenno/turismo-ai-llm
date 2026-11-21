@@ -1,17 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
-import { 
-  AlertTriangle, MoreVertical, 
-  MapPin, Shield, Home, CheckCircle2, Trash2, Clock, 
-  RefreshCw, Radio, Sliders, Maximize,  
-  Flame,
+import {
+  AlertTriangle, MoreVertical,
+  MapPin, Shield, CheckCircle2, Trash2, Clock,
+  Radio, Flame,
   ClipboardList, Filter, Loader2
 } from 'lucide-react';
-
 
 import Button from '@mui/material/Button';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAlt';
 import { useAuth } from '../contexts/AuthContext';
-import type { Alerta } from '../models/Visual';
 import TotalCommentaries from '../components/totalComentaries';
 import Infractions from '../components/Infractions';
 import UnderRisk from '../components/UnderRisk';
@@ -27,6 +24,7 @@ import { db } from '../firebaseConfig';
 import MonitoredSpots from '../components/MonitoredSpots';
 import SpotInfoPanel from '../components/SpotInfoPanel';
 import LastSyncOnCityChoice from '../components/LastSyncOnCityChoice';
+import CriticalZones from '../components/CriticalZones';
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -191,20 +189,6 @@ export default function Dashboard() {
     fetchCitySpots();
     return () => { cancelled = true; };
   }, [cityName]);
-
-  // Top 3 spots com maior danger_score (apenas os que têm risco > 0)
-  const coresZonasCriticas = [
-    { texto: 'text-[#ba1a1a]', fundo: 'bg-[#ba1a1a]', badge: 'bg-red-50 border-red-200' },
-    { texto: 'text-[#d97706]', fundo: 'bg-[#d97706]', badge: 'bg-amber-50 border-amber-200' },
-    { texto: 'text-[#505f76]', fundo: 'bg-[#505f76]', badge: 'bg-slate-100 border-slate-200' },
-  ];
-  const zonasCriticas = [...mapMarkers]
-    .filter(spot => (spot.danger_score ?? 0) > 0)
-    .sort((a, b) => (b.danger_score ?? 0) - (a.danger_score ?? 0))
-    .slice(0, 3);
-
-
-  
 
   return (
     <div className="bg-[#F8FAFC] text-[#1b1c1d] min-h-screen flex flex-col antialiased selection:bg-[#041627] selection:text-white font-sans">
@@ -410,43 +394,7 @@ export default function Dashboard() {
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 scroll-mt-24" id="analitico">
           <InfractionsByCategory />
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6 shadow-sm">
-            <div>
-              <div className="flex items-center justify-between mb-4 border-b border-[#F1F5F9] pb-3">
-                <div>
-                  <h4 className="text-lg sm:text-xl font-bold text-[#041627]">Zonas Mais Críticas</h4>
-                  <p className="text-xs text-[#74777d]">Índice de vulnerabilidade territorial</p>
-                </div>
-                <span className="text-[11px] bg-red-100 text-red-800 font-extrabold px-2.5 py-0.5 rounded-full">Top 3</span>
-              </div>
-              <div className="space-y-5">
-                {zonasCriticas.length === 0 ? (
-                  <p className="text-xs text-[#74777d] text-center py-6">Nenhuma zona com risco identificado.</p>
-                ) : (
-                  zonasCriticas.map((spot, index) => {
-                    const cor = coresZonasCriticas[index];
-                    const score = spot.danger_score ?? 0;
-                    return (
-                      <div key={spot.id} className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
-                        <div className="flex justify-between items-center text-xs font-semibold mb-2 gap-2">
-                          <span className="flex items-center gap-1.5 text-[#041627] font-bold min-w-0">
-                            <MapPin className={`w-3.5 h-3.5 shrink-0 ${cor.texto}`} />
-                            <span className="truncate">{spot.nome || spot.name || 'Local Sem Nome'}</span>
-                          </span>
-                          <span className={`${cor.texto} ${cor.badge} font-bold px-2 py-0.5 rounded border whitespace-nowrap`}>
-                            {Math.round(score)}% Risco
-                          </span>
-                        </div>
-                        <div className="w-full bg-[#E2E8F0] h-2.5 rounded-full overflow-hidden">
-                          <div className={`${cor.fundo} h-full rounded-full`} style={{ width: `${Math.min(score, 100)}%` }}></div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
+          <CriticalZones spots={mapMarkers} />
         </section>
 
         {/* SECTION: OPERATIONAL FEED & ALERTS */}
