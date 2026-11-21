@@ -41,7 +41,7 @@ export default function CustomAlertsPanel({ spots }: CustomAlertsPanelProps) {
     setErrorMessage('');
     setRun(null);
     try {
-      setRunId(await AlertRulesService.startRun(spots.slice(0, 200)));
+      setRunId(await AlertRulesService.startRun(spots));
     } catch (error) {
       console.error('Erro ao verificar alertas:', error);
       setRunId(null);
