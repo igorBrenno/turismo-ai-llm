@@ -5,7 +5,8 @@ import { MessageSquare } from "lucide-react"
 import { useAuth } from "../contexts/AuthContext"
 export default function TotalCommentaries(){
     const [totalComments, setTotalComments] = useState<number>(0)
-    const [ commentsPercentage, setCommentsPercentage] = useState<number>(0)
+    // A porcentagem é calculada, mas ainda não é exibida no card
+    const [, setCommentsPercentage] = useState<number>(0)
     const auth = useAuth();
     const fetchTotalComments = async () => {
         const cityId = auth.currentUser?.cityChoiceForAnalysis?.placeId
