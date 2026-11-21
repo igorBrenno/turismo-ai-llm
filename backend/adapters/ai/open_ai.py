@@ -82,7 +82,10 @@ class OpenAIAdapter(AIAnalizerProviderAdapter):
             
         for alerta in alertas_gerais:
             tipo = alerta.get("tipo_perigo",  "OUTRO")
-            score_absoluto += self.PESOS_REVIEWS.get(tipo, 1)
+            pontos = self.PESOS_REVIEWS.get(tipo, 1)
+            # Quanto este alerta somou ao nível de perigo (score absoluto)
+            alerta["danger_points_added"] = pontos
+            score_absoluto += pontos
 
         
         total_reviews = len(reviews)

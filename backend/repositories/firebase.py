@@ -53,7 +53,8 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 "tipo_perigo" : alerta.get("tipo_perigo"),
                 "justificativa" : alerta.get("justificativa"),
                 "resolvida" : False,
-                "reporter" : "AI_LLM"
+                "reporter" : "AI_LLM",
+                "danger_points_added" : alerta.get("danger_points_added", 0)
             }
             batch.set(doc_ref, dados_alertas)
         await batch.commit()
@@ -175,7 +176,8 @@ class FirebaseReviewRepository(ReviewRepositorie):
                 "tipo_perigo" : alerta.get("tipo_perigo"),
                 "justificativa" : alerta.get("justificativa"),
                 "resolvida" : False,
-                "reporter" : "AI_LLM"
+                "reporter" : "AI_LLM",
+                "danger_points_added" : alerta.get("danger_points_added", 0)
             }
             batch.set(doc_ref, dados_alertas, merge=True)
         await batch.commit()
