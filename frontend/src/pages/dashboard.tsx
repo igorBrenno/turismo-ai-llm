@@ -18,9 +18,7 @@ import CustomAlertsPanel from '../components/CustomAlertsPanel';
 import InfractionsByCategory from '../components/InfractionsByCategory';
 import { GooglePlaceService } from '../services/GooglePlaceServices';
 import ApifyLimitsCard from '../components/ApifyLimitCard';
-// Importações do Firebase para escutar em tempo real
-import { doc, onSnapshot, collection } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { useAnalyzedSpots, useCityAlerts, useDeepAnalysisStatus } from '../hooks/useCityAnalysis';
 import MonitoredSpots from '../components/MonitoredSpots';
 import SpotInfoPanel from '../components/SpotInfoPanel';
 import LastSyncOnCityChoice from '../components/LastSyncOnCityChoice';
@@ -32,18 +30,20 @@ export default function Dashboard() {
 
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
   const [searchTerm] = useState('');
-  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [spots, setSpots] = useState<TouristSpot[]>([]);
-  const [mapMarkers, setMapMarkers] = useState<TouristSpotDashboard[]>([])
   // Spot clicado no mapa (abre o painel de informações)
   const [spotSelecionado, setSpotSelecionado] = useState<TouristSpotDashboard | null>(null);
 
   const handleSpotClick = useCallback((spot: TouristSpotDashboard) => {
     setSpotSelecionado(spot);
   }, []);
-  // Novos estados para o fluxo assíncrono com o Python e Firebase
-  const [analysisStatus, setAnalysisStatus] = useState<string>('idle');
-  const [dbAlertas, setDbAlertas] = useState<any[]>([]);
+  // Dados da deep analysis da cidade, escutados em tempo real no Firestore
+  const cityId = currentUser?.cityChoiceForAnalysis?.placeId;
+  const cityName = currentUser?.cityChoiceForAnalysis?.name;
+  const analysisStatus = useDeepAnalysisStatus(cityId);
+  const mapMarkers = useAnalyzedSpots(cityId);
+  const { alerts: alertasAtivos, hideAlert } = useCityAlerts(cityId, cityName, mapMarkers);
 
   // Função centralizada para disparar a análise no Proxy (Backend Python)
   const triggerBackendAnalysis = useCallback(async (forceRefresh = false) => {
@@ -78,65 +78,19 @@ export default function Dashboard() {
     }
   }, [currentUser, spots]);
 
-  // Efeito para carregar dados do Firebase e escutar mudanças em tempo real
+  // Dispara a análise automaticamente quando os spots da cidade chegam do Google Places
   useEffect(() => {
-    const city = currentUser?.cityChoiceForAnalysis;
-    if (!city || !city.placeId) return;
+    if (spots.length > 0) triggerBackendAnalysis(false);
+  }, [triggerBackendAnalysis, spots.length]);
 
-    // 1. Chama o proxy automaticamente se já tivermos spots na tela
-    if (spots.length > 0) {
-      triggerBackendAnalysis(false);
-    }
-
-    // 2. Ouvinte em tempo real (onSnapshot) do status da cidade (Deep Analysis)
-    const statusRef = doc(db, 'deep_analysis_status', city.placeId);
-    const unsubscribeStatus = onSnapshot(statusRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setAnalysisStatus(data.analysis_status || 'idle'); // 'processing', 'idle', 'error'
-      }
-    });
-
-    // 3. Ouvinte em tempo real dos Alertas gerados pela IA
-    const alertsRef = collection(db, 'alerts');
-    const unsubscribeAlerts = onSnapshot(alertsRef, (snapshot) => {
-      const alertsList: any[] = [];
-      snapshot.forEach((docSnap) => {
-        const alertData = docSnap.data();
-        if (alertData.place_id === city.placeId) {
-          alertsList.push({ 
-            id: docSnap.id, 
-            localidade: alertData.spot_name || city.name,
-            problema: alertData.justificativa || alertData.tipo_perigo,
-            severidade: alertData.tipo_perigo === 'CRIME_GRAVE' ? 'Alto' : 'Médio',
-            horario: 'Recente',
-            tipo: 'map',
-            ...alertData 
-          });
-        }
-      });
-      if (alertsList.length > 0) {
-        setDbAlertas(alertsList);
-      }
-    });
-
-    return () => {
-      unsubscribeStatus();
-      unsubscribeAlerts();
-    };
-  }, [currentUser, spots, triggerBackendAnalysis]);
-
-  // Usa os alertas do banco se houverem, senão mantém um array vazio
-  const alertasAtivos = dbAlertas.length > 0 ? dbAlertas : [];
-
-  const handleDeletarAlerta = (id: any) => {
-    setDbAlertas(dbAlertas.filter(alerta => alerta.id !== id));
+  const handleDeletarAlerta = (id: string) => {
+    hideAlert(id);
     setActiveMenuId(null);
   };
 
-  const handleResolverAlerta = (id: any) => {
+  const handleResolverAlerta = (id: string) => {
     alert(`Alerta #${id} marcado como resolvido!`);
-    setDbAlertas(dbAlertas.filter(alerta => alerta.id !== id));
+    hideAlert(id);
     setActiveMenuId(null);
   };
 
@@ -148,28 +102,7 @@ export default function Dashboard() {
 
 
 
-  // Ouvinte em tempo real dos spots do mapa: quando a deep analysis grava/atualiza
-  // os spots no Firestore, o mapa é atualizado automaticamente
-  const markersCityId = currentUser?.cityChoiceForAnalysis?.placeId;
-  useEffect(() => {
-    if (!markersCityId) {
-      setMapMarkers([]);
-      return;
-    }
-    const dbRef = collection(db, 'deep_analysis_status', markersCityId, 'spots');
-    const unsubscribe = onSnapshot(dbRef, (snapshot) => {
-      setMapMarkers(snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      } as TouristSpotDashboard)));
-    }, (error) => {
-      console.error("Erro ao escutar spots do mapa:", error);
-    });
-    return () => unsubscribe();
-  }, [markersCityId]);
-
   // Busca os spots da cidade no Google Places (são eles que vão para a análise profunda no backend)
-  const cityName = currentUser?.cityChoiceForAnalysis?.name;
   useEffect(() => {
     if (!cityName) return;
     let cancelled = false;
@@ -330,14 +263,12 @@ export default function Dashboard() {
               spots={mapMarkers} 
               onSpotClick={handleSpotClick}
               height='100%'
-              setSpots={setMapMarkers}
             />
             {spotSelecionado && (
               <SpotInfoPanel
                 spot={spotSelecionado}
                 alertas={alertasAtivos.filter(a =>
-                  a.spot_id === spotSelecionado.id ||
-                  (a.localidade || '') === (spotSelecionado.nome || spotSelecionado.name)
+                  a.place_id === spotSelecionado.id
                 )}
                 onClose={() => setSpotSelecionado(null)}
               />
