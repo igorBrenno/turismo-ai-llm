@@ -116,6 +116,7 @@ class FirebaseReviewRepository(ReviewRepositorie):
                             "lat" : place_data.get("lat"),
                             "lng" : place_data.get("lng"),
                             "danger_score" : place_data.get("danger_score"),
+                            "total_reviews" : place_data.get("total_analisado_ia", 0),
                             "rating" : place_data.get("rating", 0),
                             "resumo_ia": place_data.get("resumo_ia", ""),
                             "ultima_varredura": firestore.SERVER_TIMESTAMP
