@@ -6,6 +6,8 @@ import Profile from './pages/profile-settings'
 import Pesquisa from './pages/city-search'
 import SpotDetails from './pages/SpotDetails'
 import AlertRules from './pages/alert-rules'
+import Charts from './pages/charts'
+import SpotAnalysis from './pages/spot-analysis'
 import { SearchContextProvider } from './contexts/SearchContext';
 import MainLayout from './layouts/MainLayout';
 import { AuthContextProvider } from './contexts/AuthContext';
@@ -46,6 +48,10 @@ export default function App() {
                 <Route path="/spot/:id" element={<SpotDetails />} />
 
                 <Route path='/alertas' element={<AlertRules/>}/>
+
+                <Route path='/graficos' element={<Charts/>}/>
+
+                <Route path='/graficos/spot/:cityId/:spotId' element={<SpotAnalysis/>}/>
 
                 {/* <Route path="/pontos-turisticos" element={<PontosTuristicos />} /> */}
                 

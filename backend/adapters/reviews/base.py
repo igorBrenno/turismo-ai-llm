@@ -1,16 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any, Optional, Union
 from models.review import ReviewSchema
 
 
 class ReviewProviderAdapter(ABC):
 
     @abstractmethod
-    def fetch_reviews(self, place_id: Union[str, list[str]], limit: int) -> list[ReviewSchema]:
-        """Busca avaliações de um local específico ou de uma lista de locais."""
+    def fetch_reviews(self, place_id: Union[str, list[str]], limit: Optional[int] = None) -> list[ReviewSchema]:
+        """Busca avaliações de um local específico ou de uma lista de locais.
+        Sem `limit`, vale o teto MAX_REVIEWS_PER_PLACE de config/limits.py."""
         pass
 
-    def fetch_latest_reviews(self, place_ids: list[str], limit_per_place: int) -> dict[str, list[ReviewSchema]]:
+    def fetch_latest_reviews(self, place_ids: list[str], limit_per_place: Optional[int] = None) -> dict[str, list[ReviewSchema]]:
         """Busca os comentários mais recentes de vários locais (fallback padrão: um por vez)."""
         return {
             place_id: self.fetch_reviews(place_id=place_id, limit=limit_per_place)

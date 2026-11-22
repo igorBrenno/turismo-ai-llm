@@ -17,7 +17,7 @@ class FakeReviewProvider(ReviewProviderAdapter):
         self.reviews = reviews or []
         self.fetch_calls: List[Dict[str, Any]] = []
 
-    def fetch_reviews(self, place_id, limit) -> List[ReviewSchema]:
+    def fetch_reviews(self, place_id, limit=None) -> List[ReviewSchema]:
         self.fetch_calls.append({"place_id": place_id, "limit": limit})
         place_ids = place_id if isinstance(place_id, list) else [place_id]
         return [r for r in self.reviews if r.place_id in place_ids]

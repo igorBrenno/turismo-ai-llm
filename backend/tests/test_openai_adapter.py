@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from adapters.ai.open_ai import OpenAIAdapter
+from adapters.ai.open_ai import MIN_REVIEWS_FOR_SCORE, OpenAIAdapter
 from tests.fakes import make_review
 
 
@@ -79,15 +79,15 @@ class TestAnalyzeReviews:
     def test_no_alerts_means_zero_danger(self, adapter):
         reply_with(adapter, ai_response(danger_payload()))
 
-        result = adapter.analizar_reviews([make_review("r1")])
+        result = adapter.analizar_reviews([make_review(f"r{i}") for i in range(MIN_REVIEWS_FOR_SCORE)])
 
         assert result["danger_score"] == 0
         assert result["alertas"] == []
 
-    def test_empty_review_list_returns_zero_without_calling_the_ai(self, adapter):
+    def test_empty_review_list_has_no_score_and_does_not_call_the_ai(self, adapter):
         result = adapter.analizar_reviews([])
 
-        assert result["danger_score"] == 0
+        assert result["danger_score"] is None
         assert result["total_reviews"] == 0
         adapter.client.chat.completions.create.assert_not_called()
 
@@ -118,11 +118,27 @@ class TestAnalyzeReviews:
         assert result["resumo"] == "First | Second"
         assert [a["review_id"] for a in result["alertas"]] == ["r0", "r60"]
 
+    def test_score_is_not_calculated_below_the_minimum_number_of_reviews(self, adapter):
+        reply_with(adapter, ai_response(danger_payload(alert("r1", "INFRAESTRUTURA_PERIGOSA"))))
+
+        result = adapter.analizar_reviews([make_review("r1")])
+
+        assert result["danger_score"] is None
+        assert result["alertas"][0]["danger_points_added"] == 8, "alerts are still recorded"
+
+    def test_score_is_calculated_from_the_minimum_number_of_reviews(self, adapter):
+        reply_with(adapter, ai_response(danger_payload(alert("r0", "INFRAESTRUTURA_PERIGOSA"))))
+
+        result = adapter.analizar_reviews([make_review(f"r{i}") for i in range(MIN_REVIEWS_FOR_SCORE)])
+
+        assert result["danger_score"] == pytest.approx(8 / MIN_REVIEWS_FOR_SCORE * 100)
+
     @pytest.mark.xfail(strict=True, reason="Known issue: danger_score is not bounded and can exceed 100.")
     def test_danger_score_never_exceeds_one_hundred(self, adapter):
-        reply_with(adapter, ai_response(danger_payload(alert("r1", "CRIME_GRAVE"), alert("r2", "CRIME_GRAVE"))))
+        reviews = [make_review(f"r{i}") for i in range(MIN_REVIEWS_FOR_SCORE)]
+        reply_with(adapter, ai_response(danger_payload(*[alert(r.review_id, "CRIME_GRAVE") for r in reviews])))
 
-        result = adapter.analizar_reviews([make_review("r1"), make_review("r2")])
+        result = adapter.analizar_reviews(reviews)
 
         assert 0 <= result["danger_score"] <= 100
 

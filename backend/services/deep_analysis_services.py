@@ -36,7 +36,8 @@ class CityDeepAnalysis:
 
             # 1. Puxa os dados do Apify
             inicio = time.perf_counter()
-            reviews = self.apify.fetch_reviews(spot_ids, limit=30)
+            # O limite de reviews por local fica em config/limits.py (MAX_REVIEWS_PER_PLACE)
+            reviews = self.apify.fetch_reviews(spot_ids)
             print(f"⏱️ [TIMER] Scraping dos place_ids ({len(spot_ids)} spots, {len(reviews or [])} reviews): {time.perf_counter() - inicio:.2f}s")
             
             if not reviews:

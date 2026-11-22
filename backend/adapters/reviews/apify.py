@@ -1,38 +1,48 @@
 from .base import ReviewProviderAdapter
 from apify_client import ApifyClient
 from models.review import ReviewSchema
-from typing import Any, List, Union, Dict
+from typing import Any, List, Optional, Union, Dict
+from config import limits
+
+
+def limit_reviews_per_place(requested : Optional[int]) -> Optional[int]:
+    # Aplica o teto de config/limits.py ao que foi pedido; None em ambos = sem limite
+    values = [ value for value in (requested, limits.MAX_REVIEWS_PER_PLACE) if value is not None ]
+    return min(values) if values else None
+
+
+def with_reviews_limit(run_input : dict, requested : Optional[int]) -> dict:
+    max_reviews = limit_reviews_per_place(requested)
+    return run_input if max_reviews is None else { **run_input, "maxReviews" : max_reviews }
 
 class ApifyReviewsAdapter(ReviewProviderAdapter):
 
     def __init__(self, token_apify : str):
         self.client = ApifyClient(token_apify)
         
-    def fetch_reviews(self, place_id : Union[str, List[str]], limit : int) -> List[ReviewSchema]:
+    def fetch_reviews(self, place_id : Union[str, List[str]], limit : Optional[int] = None) -> List[ReviewSchema]:
         # Aceita um id (tela de detalhes do ponto) ou uma lista de ids (análise profunda da cidade)
         place_ids = [place_id] if isinstance(place_id, str) else place_id
-        run_input = {
+        run_input = with_reviews_limit({
             "placeIds" : place_ids,
-            "maxReviews" : limit,
             "language" : "pt-BR",
             "personalData" : False
-        }
+        }, limit)
         
         # Como o _run_actor já retorna a lista de ReviewSchema formatada, é só retornar direto!
         return self._run_actor(run_input)
 
-    def fetch_latest_reviews(self, place_ids : List[str], limit_per_place : int) -> Dict[str, List[ReviewSchema]]:
+    def fetch_latest_reviews(self, place_ids : List[str], limit_per_place : Optional[int] = None) -> Dict[str, List[ReviewSchema]]:
         # Uma única execução do ator para todos os locais
         if not place_ids:
             return {}
             
-        run_input = {
+        run_input = with_reviews_limit({
             "placeIds" : place_ids,
-            "maxReviews" : limit_per_place,
             "reviewsSort" : "newest",
             "language" : "pt-BR",
             "personalData" : False
-        }
+        }, limit_per_place)
         
         reviews_por_local : Dict[str, List[ReviewSchema]] = { place_id : [] for place_id in place_ids }
 

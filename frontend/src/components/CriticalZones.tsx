@@ -1,5 +1,6 @@
 import { MapPin } from 'lucide-react';
 import type { TouristSpotDashboard } from '../models/Spot';
+import { getDangerScore } from '../utils/dangerScore';
 
 interface CriticalZonesProps {
   spots: TouristSpotDashboard[];
@@ -12,11 +13,11 @@ const CORES_POR_POSICAO = [
   { texto: 'text-[#505f76]', fundo: 'bg-[#505f76]', badge: 'bg-slate-100 border-slate-200' },
 ];
 
-// Top 3 spots com maior danger_score (apenas os que têm risco > 0)
+// Top 3 spots com maior índice de perigo (só os com risco > 0 e reviews suficientes)
 const topZonasCriticas = (spots: TouristSpotDashboard[]) =>
   [...spots]
-    .filter(spot => (spot.danger_score ?? 0) > 0)
-    .sort((a, b) => (b.danger_score ?? 0) - (a.danger_score ?? 0))
+    .filter(spot => (getDangerScore(spot) ?? 0) > 0)
+    .sort((a, b) => (getDangerScore(b) ?? 0) - (getDangerScore(a) ?? 0))
     .slice(0, CORES_POR_POSICAO.length);
 
 export default function CriticalZones({ spots }: CriticalZonesProps) {
@@ -38,7 +39,7 @@ export default function CriticalZones({ spots }: CriticalZonesProps) {
           ) : (
             zonasCriticas.map((spot, index) => {
               const cor = CORES_POR_POSICAO[index];
-              const score = spot.danger_score ?? 0;
+              const score = getDangerScore(spot) ?? 0;
               return (
                 <div key={spot.id} className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
                   <div className="flex justify-between items-center text-xs font-semibold mb-2 gap-2">
