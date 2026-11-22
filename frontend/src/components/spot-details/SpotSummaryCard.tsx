@@ -1,5 +1,6 @@
 import { Clock, ShieldAlert, Sparkles, Star } from 'lucide-react';
 import type { TouristSpotDashboard } from '../../models/Spot';
+import { getDangerScore, INSUFFICIENT_DATA_HINT, INSUFFICIENT_DATA_LABEL } from '../../utils/dangerScore';
 
 interface SpotSummaryCardProps {
   spot: TouristSpotDashboard;
@@ -14,6 +15,7 @@ const formatDate = (value: unknown): string | null => {
 
 export default function SpotSummaryCard({ spot, totalReviews }: SpotSummaryCardProps) {
   const lastScan = formatDate(spot.ultima_varredura);
+  const score = getDangerScore(spot);
 
   return (
     <section className="bg-white border border-[#E2E8F0] rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
@@ -22,9 +24,16 @@ export default function SpotSummaryCard({ spot, totalReviews }: SpotSummaryCardP
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#ba1a1a] flex items-center gap-1">
             <ShieldAlert className="w-3.5 h-3.5" /> Índice de perigo
           </p>
-          <p className="text-2xl font-extrabold text-[#041627] mt-1">
-            {Math.round(spot.danger_score ?? 0)} <span className="text-sm font-semibold text-[#505f76]">pts / 100 reviews</span>
-          </p>
+          {score != null ? (
+            <p className="text-2xl font-extrabold text-[#041627] mt-1">
+              {Math.round(score)} <span className="text-sm font-semibold text-[#505f76]">pts / 100 reviews</span>
+            </p>
+          ) : (
+            <>
+              <p className="text-lg font-extrabold text-[#041627] mt-1">{INSUFFICIENT_DATA_LABEL}</p>
+              <p className="text-[11px] text-[#505f76]">{INSUFFICIENT_DATA_HINT}</p>
+            </>
+          )}
         </div>
         <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#505f76] flex items-center gap-1">
