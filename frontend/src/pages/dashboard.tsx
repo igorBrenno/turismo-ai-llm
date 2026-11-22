@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  AlertTriangle, MoreVertical,
-  MapPin, Shield, CheckCircle2, Trash2, Clock,
-  Radio, Flame,
-  ClipboardList, Filter, Loader2
+  MapPin, Shield, CheckCircle2,
+  Radio,
+  ClipboardList, Filter, Loader2, ChevronDown
 } from 'lucide-react';
 
 import Button from '@mui/material/Button';
@@ -19,10 +18,14 @@ import InfractionsByCategory from '../components/InfractionsByCategory';
 import { GooglePlaceService } from '../services/GooglePlaceServices';
 import ApifyLimitsCard from '../components/ApifyLimitCard';
 import { useAnalyzedSpots, useCityAlerts, useDeepAnalysisStatus } from '../hooks/useCityAnalysis';
+import { CityAlertsService } from '../services/CityAlertsService';
 import MonitoredSpots from '../components/MonitoredSpots';
 import SpotInfoPanel from '../components/SpotInfoPanel';
 import LastSyncOnCityChoice from '../components/LastSyncOnCityChoice';
 import CriticalZones from '../components/CriticalZones';
+
+// Quantos alertas a tabela de Gestão de Ocorrências mostra por vez ("Carregar mais" soma outros 10)
+const LIMITE_OCORRENCIAS = 10;
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -30,7 +33,10 @@ export default function Dashboard() {
 
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
   const [searchTerm] = useState('');
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [resolvendoId, setResolvendoId] = useState<string | null>(null);
+  const [falhaResolverId, setFalhaResolverId] = useState<string | null>(null);
+  // Quantidade visível na tabela de ocorrências, guardada por cidade (volta a 10 ao trocar de cidade)
+  const [ocorrenciasVisiveis, setOcorrenciasVisiveis] = useState<{ cityId?: string | null; total: number }>({ total: LIMITE_OCORRENCIAS });
   const [spots, setSpots] = useState<TouristSpot[]>([]);
   // Spot clicado no mapa (abre o painel de informações)
   const [spotSelecionado, setSpotSelecionado] = useState<TouristSpotDashboard | null>(null);
@@ -43,7 +49,7 @@ export default function Dashboard() {
   const cityName = currentUser?.cityChoiceForAnalysis?.name;
   const analysisStatus = useDeepAnalysisStatus(cityId);
   const mapMarkers = useAnalyzedSpots(cityId);
-  const { alerts: alertasAtivos, hideAlert } = useCityAlerts(cityId, cityName, mapMarkers);
+  const { alerts: alertasAtivos } = useCityAlerts(cityId, cityName, mapMarkers);
 
   // Função centralizada para disparar a análise no Proxy (Backend Python)
   const triggerBackendAnalysis = useCallback(async (forceRefresh = false) => {
@@ -83,21 +89,29 @@ export default function Dashboard() {
     if (spots.length > 0) triggerBackendAnalysis(false);
   }, [triggerBackendAnalysis, spots.length]);
 
-  const handleDeletarAlerta = (id: string) => {
-    hideAlert(id);
-    setActiveMenuId(null);
-  };
-
-  const handleResolverAlerta = (id: string) => {
-    alert(`Alerta #${id} marcado como resolvido!`);
-    hideAlert(id);
-    setActiveMenuId(null);
+  const handleResolverAlerta = async (id: string) => {
+    if (!cityId) return;
+    setResolvendoId(id);
+    setFalhaResolverId(null);
+    try {
+      await CityAlertsService.resolve(cityId, id);
+    } catch (error) {
+      console.error('Erro ao resolver alerta:', error);
+      setFalhaResolverId(id);
+    } finally {
+      setResolvendoId(null);
+    }
   };
 
   const alertasFiltrados = alertasAtivos.filter(alerta => 
     (alerta.localidade || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (alerta.problema || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+  // A tabela mostra só alertas não resolvidos (useCityAlerts já filtra resolvida == false), de 10 em 10
+  const limiteOcorrencias = ocorrenciasVisiveis.cityId === cityId ? ocorrenciasVisiveis.total : LIMITE_OCORRENCIAS;
+  const alertasExibidos = alertasFiltrados.slice(0, limiteOcorrencias);
+  const haMaisOcorrencias = alertasFiltrados.length > alertasExibidos.length;
+  const carregarMaisOcorrencias = () => setOcorrenciasVisiveis({ cityId, total: limiteOcorrencias + LIMITE_OCORRENCIAS });
 
 
 
@@ -175,23 +189,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <TotalCommentaries />
             
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Infrações Ativas</p>
-                  <Infractions />
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-red-50 text-[#ba1a1a] flex items-center justify-center transition-transform group-hover:scale-105">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-              </div>
-              <div className="pt-4 mt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-red-50 text-[#ba1a1a]">
-                  <Flame className="w-3 h-3" /> Atenção Imediata
-                </span>
-                <span className="text-[#74777d]">{alertasAtivos.length} Alertas no total</span>
-              </div>
-            </div>
+            <Infractions />
 
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group">
               <div className="flex justify-between items-start">
@@ -241,19 +239,6 @@ export default function Dashboard() {
                 <h3 className="text-xl sm:text-2xl font-bold text-[#041627] tracking-tight">Monitoramento Espacial</h3>
               </div>
               <p className="text-xs sm:text-sm text-[#505f76] mt-1">Visualização cartográfica em tempo real dos focos prioritários.</p>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="inline-flex rounded-lg shadow-sm border border-[#E2E8F0] p-1 bg-[#F8FAFC]">
-                <button className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#041627] text-white">Todos</button>
-                <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Alto Risco</button>
-                <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Médio</button>
-                <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Baixo</button>
-              </div>
-              <div className="flex items-center gap-2">
-                
-                
-              </div>
             </div>
           </div>
 
@@ -345,13 +330,13 @@ export default function Dashboard() {
                 </select>
               </div>
               <span className="text-xs font-medium text-[#74777d] bg-[#F1F5F9] px-3 py-1.5 rounded-lg border border-[#E2E8F0]">
-                Exibindo <strong>{alertasFiltrados.length}</strong> de <strong>{alertasAtivos.length}</strong> alertas ativos
+                Exibindo <strong>{alertasExibidos.length}</strong> de <strong>{alertasAtivos.length}</strong> alertas ativos
               </span>
             </div>
           </div>
 
           <div className="overflow-x-auto custom-scrollbar">
-            {alertasFiltrados.length === 0 ? (
+            {alertasExibidos.length === 0 ? (
               <div className="p-12 text-center text-[#74777d]">Nenhum alerta encontrado na base de dados para esta região.</div>
             ) : (
               <table className="w-full text-left border-collapse min-w-[760px]">
@@ -360,12 +345,11 @@ export default function Dashboard() {
                     <th className="py-3.5 px-6">Localidade</th>
                     <th className="py-3.5 px-6">Problema Detectado</th>
                     <th className="py-3.5 px-6 text-center">Severidade</th>
-                    <th className="py-3.5 px-6">Horário</th>
-                    <th className="py-3.5 px-6 text-center">Ações</th>
+                    <th className="py-3.5 px-6 text-center">Resolução</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0] text-sm text-[#1b1c1d]">
-                  {alertasFiltrados.map((alerta) => (
+                  {alertasExibidos.map((alerta) => (
                     <tr key={alerta.id} className="hover:bg-[#F8FAFC] transition-colors group">
                       <td className="py-4 px-6 font-semibold flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -384,22 +368,16 @@ export default function Dashboard() {
                           {alerta.severidade}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-xs text-[#505f76] font-medium">
-                        <span className="flex items-center"><Clock className="w-3 h-3 mr-1 text-slate-400"/> {alerta.horario}</span>
-                      </td>
-                      <td className="py-4 px-6 text-center relative">
-                        <button onClick={() => setActiveMenuId(activeMenuId === alerta.id ? null : alerta.id)} className="p-1 rounded hover:bg-slate-200">
-                          <MoreVertical className="w-4 h-4" />
+                      <td className="py-4 px-6 text-center">
+                        <button
+                          onClick={() => handleResolverAlerta(alerta.id)}
+                          disabled={resolvendoId === alerta.id}
+                          className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg text-xs font-semibold text-emerald-700 hover:bg-emerald-50 inline-flex items-center gap-1 transition-colors disabled:opacity-60 whitespace-nowrap"
+                        >
+                          {resolvendoId === alerta.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          {resolvendoId === alerta.id ? 'Salvando...' : 'Marcar como resolvido'}
                         </button>
-                        {activeMenuId === alerta.id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setActiveMenuId(null)}></div>
-                            <div className="absolute right-12 top-2 mt-2 w-44 bg-white border border-[#E2E8F0] rounded-md shadow-lg py-1 z-20 text-left">
-                              <button onClick={() => handleResolverAlerta(alerta.id)} className="w-full px-4 py-2 text-xs text-emerald-700 hover:bg-emerald-50 font-medium flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5" /> Resolver</button>
-                              <button onClick={() => handleDeletarAlerta(alerta.id)} className="w-full px-4 py-2 text-xs text-rose-700 hover:bg-rose-50 font-medium flex items-center gap-2"><Trash2 className="w-3.5 h-3.5" /> Excluir</button>
-                            </div>
-                          </>
-                        )}
+                        {falhaResolverId === alerta.id && <p className="text-[11px] text-[#ba1a1a] mt-1">Não foi possível salvar.</p>}
                       </td>
                     </tr>
                   ))}
@@ -407,6 +385,17 @@ export default function Dashboard() {
               </table>
             )}
           </div>
+
+          {haMaisOcorrencias && (
+            <div className="p-4 border-t border-[#E2E8F0]">
+              <button
+                onClick={carregarMaisOcorrencias}
+                className="w-full py-2 border border-[#E2E8F0] rounded-lg text-xs font-semibold text-[#44474c] hover:bg-[#F1F5F9] flex items-center justify-center gap-1 transition-colors"
+              >
+                <ChevronDown className="w-3.5 h-3.5" /> Carregar mais {LIMITE_OCORRENCIAS}
+              </button>
+            </div>
+          )}
         </section>
       </main>
     </div>

@@ -14,7 +14,7 @@ export interface SpotReview {
   date?: string;
 }
 
-export type SpotAlert = Omit<CityAlert, 'localidade' | 'problema' | 'severidade' | 'horario'>;
+export type SpotAlert = Omit<CityAlert, 'localidade' | 'problema' | 'severidade'>;
 
 export interface PagedList<T> {
   items: T[];

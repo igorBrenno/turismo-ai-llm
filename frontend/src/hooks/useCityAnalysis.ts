@@ -18,10 +18,9 @@ export interface CityAlert {
   localidade: string;
   problema: string;
   severidade: 'Alto' | 'Médio';
-  horario: string;
 }
 
-type RawCityAlert = Omit<CityAlert, 'localidade' | 'problema' | 'severidade' | 'horario'>;
+type RawCityAlert = Omit<CityAlert, 'localidade' | 'problema' | 'severidade'>;
 
 
 interface CityScoped<T> {
@@ -101,7 +100,6 @@ export function useCityAlerts(cityId: string | null | undefined, cityName: strin
         localidade: (alert.place_id && spotNames.get(alert.place_id)) || cityName || 'Local desconhecido',
         problema: alert.justificativa || alert.tipo_perigo || '',
         severidade: alert.tipo_perigo === 'CRIME_GRAVE' ? 'Alto' : 'Médio',
-        horario: 'Recente',
       }));
   }, [rawAlerts, hiddenIds, spots, cityName]);
 
