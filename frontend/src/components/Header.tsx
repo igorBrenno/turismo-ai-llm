@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { TrendingUp, Search, Bell, HelpCircle, LogOut, User } from 'lucide-react';
+import { TrendingUp, Bell, HelpCircle, LogOut, User } from 'lucide-react';
 import { signOut } from 'firebase/auth'; // Import do método de logout do Firebase
 import { auth } from '../firebaseConfig'; // Substitui a importação do supabase
 import { useProfile } from '../hooks/useProfile';
 import { useAuth } from '../contexts/AuthContext';
-import { useSearch } from '../contexts/SearchContext';
 
 
 export default function Header() {
@@ -15,7 +14,6 @@ export default function Header() {
   const navigate = useNavigate();
   const { profile } = useProfile(); // Puxa os dados reais do banco ou fallback
   console.log(currentUser.currentUser)
-  const { searchTerm, setSearchTerm } = useSearch()
 
   const handleLogout = async () => {
     try {
@@ -84,22 +82,23 @@ export default function Header() {
           >
             Alertas
           </NavLink>
+          <NavLink 
+            to="/graficos" 
+            className={({ isActive }) => 
+              `px-4 py-2 rounded-md font-semibold transition-colors ${
+                isActive 
+                  ? 'bg-[#d2e4fb] text-[#0b1d2d]' 
+                  : 'text-[#505f76] hover:text-[#041627]'
+              }`
+            }
+          >
+            Gráficos
+          </NavLink>
         </nav>
       </div>
 
-      {/* Busca & Perfil */}
+      {/* Notificações & Perfil */}
       <div className="flex items-center gap-6">
-        <div className="relative">
-          <Search className="w-4 h-4 text-[#74777d] absolute left-3 top-1/2 -translate-y-1/2" />
-          <input 
-            type="text" 
-            placeholder="Pesquisar local ou problema..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 pr-4 py-2 bg-[#f5f3f4] border-none rounded-md text-sm w-60 focus:outline-none focus:ring-2 focus:ring-[#041627] transition-all"
-          />
-        </div>
-        
         <div className="flex items-center gap-3 text-[#505f76]">
           <button className="relative p-1 hover:text-[#041627]" onClick={() => { setNotificacoes(0); alert('Notificações limpas'); }}>
             <Bell className="w-5 h-5" />
