@@ -29,7 +29,7 @@ export default function SpotAnalysis() {
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#041627] tracking-tight">{spot.nome || spot.name || 'Local sem nome'}</h2>
           <SpotSummaryCard spot={spot} totalReviews={reviews.total ?? reviews.items.length} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            <SpotAlertsList alerts={alerts} />
+            {cityId && <SpotAlertsList cityId={cityId} alerts={alerts} />}
             <SpotReviewsList reviews={reviews} />
           </div>
         </>
