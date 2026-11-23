@@ -4,6 +4,7 @@ import DangerPointsExplainer from '../components/charts/DangerPointsExplainer';
 import InfractionsByCategory from '../components/InfractionsByCategory';
 import CriticalZones from '../components/CriticalZones';
 import CriticalSpotsList from '../components/charts/CriticalSpotsList';
+import RatingVsDangerChart from '../components/charts/RatingVsDangerChart';
 import { useAuth } from '../contexts/AuthContext';
 import { useAnalyzedSpots } from '../hooks/useCityAnalysis';
 
@@ -19,6 +20,8 @@ export default function Charts() {
       <DangerPointsExplainer />
 
       <CriticalSpotsList cityId={cityId} spots={spots} />
+
+      <RatingVsDangerChart cityId={cityId} spots={spots} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <InfractionsByCategory />
