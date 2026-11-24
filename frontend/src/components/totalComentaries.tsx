@@ -5,7 +5,8 @@ import { MessageSquare } from "lucide-react"
 import { useAuth } from "../contexts/AuthContext"
 export default function TotalCommentaries(){
     const [totalComments, setTotalComments] = useState<number>(0)
-    const [ commentsPercentage, setCommentsPercentage] = useState<number>(0)
+    // A porcentagem é calculada, mas ainda não é exibida no card
+    const [, setCommentsPercentage] = useState<number>(0)
     const auth = useAuth();
     const fetchTotalComments = async () => {
         const cityId = auth.currentUser?.cityChoiceForAnalysis?.placeId
@@ -58,7 +59,7 @@ export default function TotalCommentaries(){
         <div className="bg-white border border-[#E2E8F0] rounded-lg p-6 flex flex-col justify-between shadow-sm">
             <div className="flex justify-between items-start">
                 <div>
-                    <p className="text-xs font-semibold text-[#505f76] tracking-wider uppercase">Total de Comentários</p>
+                    <p className="text-xs font-semibold text-[#505f76] tracking-wider uppercase">Total de Reviews revisadas</p>
                     <h3 className="text-[36px] font-bold text-[#041627] mt-2 tracking-tight">{ totalComments }</h3>
                 </div>
                 <div className="p-2 text-[#74777d]">
@@ -66,10 +67,7 @@ export default function TotalCommentaries(){
                 </div>
             </div>
             
-            <div className="flex items-center gap-2 mt-4 text-xs text-[#74777d]">
-                <span className="text-[#128049] font-semibold flex items-center gap-0.5">↗ { commentsPercentage }%</span>
-                <span>Comparado ao mês passado(30 dias atrás)</span>
-            </div>
+            
         </div>
     )
 }

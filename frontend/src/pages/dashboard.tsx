@@ -1,17 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
-import { 
-  AlertTriangle, MoreVertical, 
-  MapPin, Shield, Home, CheckCircle2, Trash2, Clock, 
-  RefreshCw, Radio, Sliders, Maximize,  
-  Flame,
-  ClipboardList, Filter, Loader2
+import {
+  MapPin, Shield, CheckCircle2,
+  Radio,
+  ClipboardList, Filter, Loader2, ChevronDown
 } from 'lucide-react';
-
 
 import Button from '@mui/material/Button';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAlt';
 import { useAuth } from '../contexts/AuthContext';
-import type { Alerta } from '../models/Visual';
 import TotalCommentaries from '../components/totalComentaries';
 import Infractions from '../components/Infractions';
 import UnderRisk from '../components/UnderRisk';
@@ -20,13 +16,16 @@ import DashboardSpotsMap from '../components/DashboardMap';
 import CustomAlertsPanel from '../components/CustomAlertsPanel';
 import InfractionsByCategory from '../components/InfractionsByCategory';
 import { GooglePlaceService } from '../services/GooglePlaceServices';
-
-// Importações do Firebase para escutar em tempo real
-import { doc, onSnapshot, collection, collectionGroup, query, getDocs } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import ApifyLimitsCard from '../components/ApifyLimitCard';
+import { useAnalyzedSpots, useCityAlerts, useDeepAnalysisStatus } from '../hooks/useCityAnalysis';
+import { CityAlertsService } from '../services/CityAlertsService';
 import MonitoredSpots from '../components/MonitoredSpots';
 import SpotInfoPanel from '../components/SpotInfoPanel';
 import LastSyncOnCityChoice from '../components/LastSyncOnCityChoice';
+import CriticalZones from '../components/CriticalZones';
+
+// Quantos alertas a tabela de Gestão de Ocorrências mostra por vez ("Carregar mais" soma outros 10)
+const LIMITE_OCORRENCIAS = 10;
 
 export default function Dashboard() {
   const auth = useAuth();
@@ -34,18 +33,23 @@ export default function Dashboard() {
 
   // 1. ESTADOS LOCALIZADOS NO DASHBOARD
   const [searchTerm] = useState('');
-  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [resolvendoId, setResolvendoId] = useState<string | null>(null);
+  const [falhaResolverId, setFalhaResolverId] = useState<string | null>(null);
+  // Quantidade visível na tabela de ocorrências, guardada por cidade (volta a 10 ao trocar de cidade)
+  const [ocorrenciasVisiveis, setOcorrenciasVisiveis] = useState<{ cityId?: string | null; total: number }>({ total: LIMITE_OCORRENCIAS });
   const [spots, setSpots] = useState<TouristSpot[]>([]);
-  const [mapMarkers, setMapMarkers] = useState<TouristSpotDashboard[]>([])
   // Spot clicado no mapa (abre o painel de informações)
   const [spotSelecionado, setSpotSelecionado] = useState<TouristSpotDashboard | null>(null);
 
   const handleSpotClick = useCallback((spot: TouristSpotDashboard) => {
     setSpotSelecionado(spot);
   }, []);
-  // Novos estados para o fluxo assíncrono com o Python e Firebase
-  const [analysisStatus, setAnalysisStatus] = useState<string>('idle');
-  const [dbAlertas, setDbAlertas] = useState<any[]>([]);
+  // Dados da deep analysis da cidade, escutados em tempo real no Firestore
+  const cityId = currentUser?.cityChoiceForAnalysis?.placeId;
+  const cityName = currentUser?.cityChoiceForAnalysis?.name;
+  const analysisStatus = useDeepAnalysisStatus(cityId);
+  const mapMarkers = useAnalyzedSpots(cityId);
+  const { alerts: alertasAtivos } = useCityAlerts(cityId, cityName, mapMarkers);
 
   // Função centralizada para disparar a análise no Proxy (Backend Python)
   const triggerBackendAnalysis = useCallback(async (forceRefresh = false) => {
@@ -80,102 +84,39 @@ export default function Dashboard() {
     }
   }, [currentUser, spots]);
 
-  // Efeito para carregar dados do Firebase e escutar mudanças em tempo real
+  // Dispara a análise automaticamente quando os spots da cidade chegam do Google Places
   useEffect(() => {
-    const city = currentUser?.cityChoiceForAnalysis;
-    if (!city || !city.placeId) return;
+    if (spots.length > 0) triggerBackendAnalysis(false);
+  }, [triggerBackendAnalysis, spots.length]);
 
-    // 1. Chama o proxy automaticamente se já tivermos spots na tela
-    if (spots.length > 0) {
-      triggerBackendAnalysis(false);
+  const handleResolverAlerta = async (id: string) => {
+    if (!cityId) return;
+    setResolvendoId(id);
+    setFalhaResolverId(null);
+    try {
+      await CityAlertsService.resolve(cityId, id);
+    } catch (error) {
+      console.error('Erro ao resolver alerta:', error);
+      setFalhaResolverId(id);
+    } finally {
+      setResolvendoId(null);
     }
-
-    // 2. Ouvinte em tempo real (onSnapshot) do status da cidade (Deep Analysis)
-    const statusRef = doc(db, 'deep_analysis_status', city.placeId);
-    const unsubscribeStatus = onSnapshot(statusRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setAnalysisStatus(data.analysis_status || 'idle'); // 'processing', 'idle', 'error'
-      }
-    });
-
-    // 3. Ouvinte em tempo real dos Alertas gerados pela IA
-    const alertsRef = collection(db, 'alerts');
-    const unsubscribeAlerts = onSnapshot(alertsRef, (snapshot) => {
-      const alertsList: any[] = [];
-      snapshot.forEach((docSnap) => {
-        const alertData = docSnap.data();
-        if (alertData.place_id === city.placeId) {
-          alertsList.push({ 
-            id: docSnap.id, 
-            localidade: alertData.spot_name || city.name,
-            problema: alertData.justificativa || alertData.tipo_perigo,
-            severidade: alertData.tipo_perigo === 'CRIME_GRAVE' ? 'Alto' : 'Médio',
-            horario: 'Recente',
-            tipo: 'map',
-            ...alertData 
-          });
-        }
-      });
-      if (alertsList.length > 0) {
-        setDbAlertas(alertsList);
-      }
-    });
-
-    return () => {
-      unsubscribeStatus();
-      unsubscribeAlerts();
-    };
-  }, [currentUser, spots, triggerBackendAnalysis]);
-
-  // Usa os alertas do banco se houverem, senão mantém um array vazio
-  const alertasAtivos = dbAlertas.length > 0 ? dbAlertas : [];
-
-  const handleDeletarAlerta = (id: any) => {
-    setDbAlertas(dbAlertas.filter(alerta => alerta.id !== id));
-    setActiveMenuId(null);
-  };
-
-  const handleResolverAlerta = (id: any) => {
-    alert(`Alerta #${id} marcado como resolvido!`);
-    setDbAlertas(dbAlertas.filter(alerta => alerta.id !== id));
-    setActiveMenuId(null);
   };
 
   const alertasFiltrados = alertasAtivos.filter(alerta => 
     (alerta.localidade || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (alerta.problema || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+  // A tabela mostra só alertas não resolvidos (useCityAlerts já filtra resolvida == false), de 10 em 10
+  const limiteOcorrencias = ocorrenciasVisiveis.cityId === cityId ? ocorrenciasVisiveis.total : LIMITE_OCORRENCIAS;
+  const alertasExibidos = alertasFiltrados.slice(0, limiteOcorrencias);
+  const haMaisOcorrencias = alertasFiltrados.length > alertasExibidos.length;
+  const carregarMaisOcorrencias = () => setOcorrenciasVisiveis({ cityId, total: limiteOcorrencias + LIMITE_OCORRENCIAS });
 
 
 
-
-  const loadMarkers = async () => {
-    const cityId = auth.currentUser?.cityChoiceForAnalysis?.placeId
-    if (!cityId) return;
-    const dbRef = collection(db, 'deep_analysis_status', cityId, 'spots');
-    const snapshot = await getDocs(dbRef);
-    const data = snapshot.docs.map(doc => ({
-      id : doc.id,
-      ...doc.data()
-    }as TouristSpotDashboard)) 
-    return data
-  }
-
-  useEffect(() => {
-    const fetchMarkers = async () => {
-      const data = await loadMarkers()
-
-      if( data){
-        setMapMarkers(data)
-      }
-    }
-
-    fetchMarkers()
-  },[])
 
   // Busca os spots da cidade no Google Places (são eles que vão para a análise profunda no backend)
-  const cityName = currentUser?.cityChoiceForAnalysis?.name;
   useEffect(() => {
     if (!cityName) return;
     let cancelled = false;
@@ -195,20 +136,6 @@ export default function Dashboard() {
     fetchCitySpots();
     return () => { cancelled = true; };
   }, [cityName]);
-
-  // Top 3 spots com maior danger_score (apenas os que têm risco > 0)
-  const coresZonasCriticas = [
-    { texto: 'text-[#ba1a1a]', fundo: 'bg-[#ba1a1a]', badge: 'bg-red-50 border-red-200' },
-    { texto: 'text-[#d97706]', fundo: 'bg-[#d97706]', badge: 'bg-amber-50 border-amber-200' },
-    { texto: 'text-[#505f76]', fundo: 'bg-[#505f76]', badge: 'bg-slate-100 border-slate-200' },
-  ];
-  const zonasCriticas = [...mapMarkers]
-    .filter(spot => (spot.danger_score ?? 0) > 0)
-    .sort((a, b) => (b.danger_score ?? 0) - (a.danger_score ?? 0))
-    .slice(0, 3);
-
-
-  
 
   return (
     <div className="bg-[#F8FAFC] text-[#1b1c1d] min-h-screen flex flex-col antialiased selection:bg-[#041627] selection:text-white font-sans">
@@ -256,32 +183,13 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-2 self-start md:self-auto">
               <LastSyncOnCityChoice />
-              <button onClick={() => triggerBackendAnalysis(true)} className="p-2 bg-white border border-[#E2E8F0] rounded-lg text-slate-600 hover:text-[#041627] hover:bg-slate-50 transition-colors shadow-sm" title="Atualizar dados">
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <TotalCommentaries />
             
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Infrações Ativas</p>
-                  <Infractions />
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-red-50 text-[#ba1a1a] flex items-center justify-center transition-transform group-hover:scale-105">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-              </div>
-              <div className="pt-4 mt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-red-50 text-[#ba1a1a]">
-                  <Flame className="w-3 h-3" /> Atenção Imediata
-                </span>
-                <span className="text-[#74777d]">{alertasAtivos.length} críticas</span>
-              </div>
-            </div>
+            <Infractions />
 
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group">
               <div className="flex justify-between items-start">
@@ -298,18 +206,14 @@ export default function Dashboard() {
                   <Shield className="w-6 h-6" />
                 </div>
               </div>
-              <div className="pt-4 mt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1 text-[#505f76] font-semibold">
-                  <RefreshCw className="w-3.5 h-3.5" /> Índice Estável
-                </div>
-                <span className="text-[#74777d]">Em 3 distritos</span>
-              </div>
+              
+               
             </div>
 
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Lugares Turisticos Monitoradas</p>
+                  <p className="text-xs font-bold text-[#505f76] uppercase tracking-wider">Lugares Turisticos Monitorados</p>
                   <MonitoredSpots />
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center transition-transform group-hover:scale-105">
@@ -318,9 +222,9 @@ export default function Dashboard() {
               </div>
               <div className="pt-4 mt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 100% Online
+                  {/* <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 100% Online */}
                 </div>
-                <span className="text-[#74777d]">28 sensores ativos</span>
+                {/* <span className="text-[#74777d]">Adicionar algo para aqui</span> */}
               </div>
             </div>
           </div>
@@ -336,22 +240,6 @@ export default function Dashboard() {
               </div>
               <p className="text-xs sm:text-sm text-[#505f76] mt-1">Visualização cartográfica em tempo real dos focos prioritários.</p>
             </div>
-            
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="inline-flex rounded-lg shadow-sm border border-[#E2E8F0] p-1 bg-[#F8FAFC]">
-                <button className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#041627] text-white">Todos</button>
-                <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Alto Risco</button>
-                <button className="px-3 py-1.5 rounded-md text-xs font-medium text-[#505f76] hover:text-[#041627] transition-colors">Médio</button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg hover:bg-[#F1F5F9] text-[#44474c] text-xs font-semibold flex items-center gap-1.5 transition-colors">
-                  <Sliders className="w-3.5 h-3.5 text-slate-500" /> Camadas
-                </button>
-                <button className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg hover:bg-[#F1F5F9] text-[#44474c] text-xs font-semibold flex items-center gap-1.5 transition-colors">
-                  <Maximize className="w-3.5 h-3.5 text-slate-500" /> Tela Cheia
-                </button>
-              </div>
-            </div>
           </div>
 
           <div className="relative w-full h-[500px] sm:h-[560px] rounded-xl overflow-hidden border border-[#CBD5E1] bg-[#F4F6F8] shadow-inner select-none">
@@ -359,14 +247,12 @@ export default function Dashboard() {
               spots={mapMarkers} 
               onSpotClick={handleSpotClick}
               height='100%'
-              setSpots={setMapMarkers}
             />
             {spotSelecionado && (
               <SpotInfoPanel
                 spot={spotSelecionado}
                 alertas={alertasAtivos.filter(a =>
-                  a.spot_id === spotSelecionado.id ||
-                  (a.localidade || '') === (spotSelecionado.nome || spotSelecionado.name)
+                  a.place_id === spotSelecionado.id
                 )}
                 onClose={() => setSpotSelecionado(null)}
               />
@@ -417,47 +303,13 @@ export default function Dashboard() {
 
         <CustomAlertsPanel spots={spots} />
 
+        <ApifyLimitsCard/>
+
         {/* SECTION: ANALYTICS & CRITICAL ZONES */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 scroll-mt-24" id="analitico">
           <InfractionsByCategory />
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 flex flex-col justify-between gap-6 shadow-sm">
-            <div>
-              <div className="flex items-center justify-between mb-4 border-b border-[#F1F5F9] pb-3">
-                <div>
-                  <h4 className="text-lg sm:text-xl font-bold text-[#041627]">Zonas Mais Críticas</h4>
-                  <p className="text-xs text-[#74777d]">Índice de vulnerabilidade territorial</p>
-                </div>
-                <span className="text-[11px] bg-red-100 text-red-800 font-extrabold px-2.5 py-0.5 rounded-full">Top 3</span>
-              </div>
-              <div className="space-y-5">
-                {zonasCriticas.length === 0 ? (
-                  <p className="text-xs text-[#74777d] text-center py-6">Nenhuma zona com risco identificado.</p>
-                ) : (
-                  zonasCriticas.map((spot, index) => {
-                    const cor = coresZonasCriticas[index];
-                    const score = spot.danger_score ?? 0;
-                    return (
-                      <div key={spot.id} className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
-                        <div className="flex justify-between items-center text-xs font-semibold mb-2 gap-2">
-                          <span className="flex items-center gap-1.5 text-[#041627] font-bold min-w-0">
-                            <MapPin className={`w-3.5 h-3.5 shrink-0 ${cor.texto}`} />
-                            <span className="truncate">{spot.nome || spot.name || 'Local Sem Nome'}</span>
-                          </span>
-                          <span className={`${cor.texto} ${cor.badge} font-bold px-2 py-0.5 rounded border whitespace-nowrap`}>
-                            {Math.round(score)}% Risco
-                          </span>
-                        </div>
-                        <div className="w-full bg-[#E2E8F0] h-2.5 rounded-full overflow-hidden">
-                          <div className={`${cor.fundo} h-full rounded-full`} style={{ width: `${Math.min(score, 100)}%` }}></div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
+          <CriticalZones spots={mapMarkers} />
         </section>
 
         {/* SECTION: OPERATIONAL FEED & ALERTS */}
@@ -478,13 +330,13 @@ export default function Dashboard() {
                 </select>
               </div>
               <span className="text-xs font-medium text-[#74777d] bg-[#F1F5F9] px-3 py-1.5 rounded-lg border border-[#E2E8F0]">
-                Exibindo <strong>{alertasFiltrados.length}</strong> de <strong>{alertasAtivos.length}</strong> alertas ativos
+                Exibindo <strong>{alertasExibidos.length}</strong> de <strong>{alertasAtivos.length}</strong> alertas ativos
               </span>
             </div>
           </div>
 
           <div className="overflow-x-auto custom-scrollbar">
-            {alertasFiltrados.length === 0 ? (
+            {alertasExibidos.length === 0 ? (
               <div className="p-12 text-center text-[#74777d]">Nenhum alerta encontrado na base de dados para esta região.</div>
             ) : (
               <table className="w-full text-left border-collapse min-w-[760px]">
@@ -493,12 +345,11 @@ export default function Dashboard() {
                     <th className="py-3.5 px-6">Localidade</th>
                     <th className="py-3.5 px-6">Problema Detectado</th>
                     <th className="py-3.5 px-6 text-center">Severidade</th>
-                    <th className="py-3.5 px-6">Horário</th>
-                    <th className="py-3.5 px-6 text-center">Ações</th>
+                    <th className="py-3.5 px-6 text-center">Resolução</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0] text-sm text-[#1b1c1d]">
-                  {alertasFiltrados.map((alerta) => (
+                  {alertasExibidos.map((alerta) => (
                     <tr key={alerta.id} className="hover:bg-[#F8FAFC] transition-colors group">
                       <td className="py-4 px-6 font-semibold flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -517,22 +368,16 @@ export default function Dashboard() {
                           {alerta.severidade}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-xs text-[#505f76] font-medium">
-                        <span className="flex items-center"><Clock className="w-3 h-3 mr-1 text-slate-400"/> {alerta.horario}</span>
-                      </td>
-                      <td className="py-4 px-6 text-center relative">
-                        <button onClick={() => setActiveMenuId(activeMenuId === alerta.id ? null : alerta.id)} className="p-1 rounded hover:bg-slate-200">
-                          <MoreVertical className="w-4 h-4" />
+                      <td className="py-4 px-6 text-center">
+                        <button
+                          onClick={() => handleResolverAlerta(alerta.id)}
+                          disabled={resolvendoId === alerta.id}
+                          className="px-3 py-1.5 border border-[#E2E8F0] rounded-lg text-xs font-semibold text-emerald-700 hover:bg-emerald-50 inline-flex items-center gap-1 transition-colors disabled:opacity-60 whitespace-nowrap"
+                        >
+                          {resolvendoId === alerta.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          {resolvendoId === alerta.id ? 'Salvando...' : 'Marcar como resolvido'}
                         </button>
-                        {activeMenuId === alerta.id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setActiveMenuId(null)}></div>
-                            <div className="absolute right-12 top-2 mt-2 w-44 bg-white border border-[#E2E8F0] rounded-md shadow-lg py-1 z-20 text-left">
-                              <button onClick={() => handleResolverAlerta(alerta.id)} className="w-full px-4 py-2 text-xs text-emerald-700 hover:bg-emerald-50 font-medium flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5" /> Resolver</button>
-                              <button onClick={() => handleDeletarAlerta(alerta.id)} className="w-full px-4 py-2 text-xs text-rose-700 hover:bg-rose-50 font-medium flex items-center gap-2"><Trash2 className="w-3.5 h-3.5" /> Excluir</button>
-                            </div>
-                          </>
-                        )}
+                        {falhaResolverId === alerta.id && <p className="text-[11px] text-[#ba1a1a] mt-1">Não foi possível salvar.</p>}
                       </td>
                     </tr>
                   ))}
@@ -540,6 +385,17 @@ export default function Dashboard() {
               </table>
             )}
           </div>
+
+          {haMaisOcorrencias && (
+            <div className="p-4 border-t border-[#E2E8F0]">
+              <button
+                onClick={carregarMaisOcorrencias}
+                className="w-full py-2 border border-[#E2E8F0] rounded-lg text-xs font-semibold text-[#44474c] hover:bg-[#F1F5F9] flex items-center justify-center gap-1 transition-colors"
+              >
+                <ChevronDown className="w-3.5 h-3.5" /> Carregar mais {LIMITE_OCORRENCIAS}
+              </button>
+            </div>
+          )}
         </section>
       </main>
     </div>

@@ -19,6 +19,7 @@ const RUN_STATUS_LABEL: Record<string, string> = {
 export default function CustomAlertsPanel({ spots }: CustomAlertsPanelProps) {
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;
+  const cityId = currentUser?.cityChoiceForAnalysis?.placeId;
 
   const [triggers, setTriggers] = useState<AlertTrigger[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
@@ -38,10 +39,11 @@ export default function CustomAlertsPanel({ spots }: CustomAlertsPanelProps) {
   const isRunning = runId !== null && (run === null || !['concluido', 'erro'].includes(run.status));
 
   const handleRun = async () => {
+    if (!cityId) return;
     setErrorMessage('');
     setRun(null);
     try {
-      setRunId(await AlertRulesService.startRun(spots.slice(0, 200)));
+      setRunId(await AlertRulesService.startRun(spots, cityId));
     } catch (error) {
       console.error('Erro ao verificar alertas:', error);
       setRunId(null);
@@ -76,7 +78,7 @@ export default function CustomAlertsPanel({ spots }: CustomAlertsPanelProps) {
           </Link>
           <button
             onClick={handleRun}
-            disabled={isRunning || spots.length === 0}
+            disabled={isRunning || spots.length === 0 || !cityId}
             title={spots.length === 0 ? 'Aguardando carregar os pontos da cidade' : undefined}
             className="px-4 py-2 bg-[#041627] hover:bg-[#1a2b3c] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-60"
           >

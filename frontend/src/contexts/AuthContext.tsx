@@ -64,7 +64,7 @@ export function AuthContextProvider( {children} : { children:ReactNode}){
                 name : data?.cityChoiceForAnalysis.name,
                 lat : data?.cityChoiceForAnalysis.lat ,
                 lng : data?.cityChoiceForAnalysis.lng ,
-                placeId : data?.cityChoiceForAnalysis.place_id,
+                placeId : data?.cityChoiceForAnalysis.placeId ?? data?.cityChoiceForAnalysis.place_id ?? null,
             } : null;
             console.log('Login efetuado com sucesso no Firebase:', userCredential.user);
             setCurrentUser({

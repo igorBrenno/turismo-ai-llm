@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 import { useProfile } from '../hooks/useProfile';
+import CityChoiceSettings from '../components/CityChoiceSettings';
 import { 
   User, 
   Camera, 
@@ -24,7 +25,6 @@ export default function ProfileSettings() {
   // Estados de Informações Pessoais
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Estados de Segurança (Alteração de Senha)
@@ -272,7 +272,10 @@ export default function ProfileSettings() {
             </div>
           </section>
 
-          {/* 3. Segurança (Nova Senha) */}
+          {/* 3. Cidade de Análise */}
+          <CityChoiceSettings />
+
+          {/* 4. Segurança (Nova Senha) */}
           <section className="bg-white p-6 rounded-xl border border-[#c4c6cd] shadow-sm">
             <div className="flex items-center gap-2 mb-6 border-b border-[#c4c6cd] pb-3">
               <Shield className="w-5 h-5 text-[#041627]" />
@@ -312,7 +315,7 @@ export default function ProfileSettings() {
             </div>
           </section>
 
-          {/* 4. Ações */}
+          {/* 5. Ações */}
           <div className="flex items-center justify-end gap-4 pt-4">
             <button 
               type="button" 

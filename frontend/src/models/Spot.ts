@@ -30,7 +30,8 @@ export interface TouristSpotDashboard {
   alert : boolean;
   // Campos salvos pelo backend em deep_analysis_status/{cidade}/spots
   nome?: string;
-  danger_score?: number;
+  danger_score?: number | null; // null = poucas reviews para calcular
+  total_reviews?: number;
   resumo_ia?: string;
   spot_id?: string;
   city_place_id?: string;

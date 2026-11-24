@@ -5,6 +5,11 @@ from .base import AIAnalizerProviderAdapter
 from models.analysis import AnalyzeAIModel
 from models.review import ReviewSchema
 
+# Abaixo disso o índice de perigo não é calculado: com poucas reviews ele fica exagerado
+# (ex.: 1 review com 1 alerta de 8 pontos viraria 800 pts / 100 reviews)
+MIN_REVIEWS_FOR_SCORE = 5
+
+
 class OpenAIAdapter(AIAnalizerProviderAdapter):
     def __init__(self, open_ai_token : str):
         self.client = OpenAI(api_key=open_ai_token)
@@ -82,11 +87,14 @@ class OpenAIAdapter(AIAnalizerProviderAdapter):
             
         for alerta in alertas_gerais:
             tipo = alerta.get("tipo_perigo",  "OUTRO")
-            score_absoluto += self.PESOS_REVIEWS.get(tipo, 1)
+            pontos = self.PESOS_REVIEWS.get(tipo, 1)
+            alerta["danger_points_added"] = pontos
+            score_absoluto += pontos
 
         
         total_reviews = len(reviews)
-        score_final = (score_absoluto / total_reviews) * 100 if total_reviews > 0 else 0
+        # None = dados insuficientes para um índice confiável (os alertas continuam valendo)
+        score_final = (score_absoluto / total_reviews) * 100 if total_reviews >= MIN_REVIEWS_FOR_SCORE else None
         resumo_final = " | ".join([r for r in resumos_gerais if r])
         
         resultado_ia_agregado = {

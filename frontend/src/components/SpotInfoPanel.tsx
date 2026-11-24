@@ -1,5 +1,6 @@
 import { X, MapPin, Star, ShieldAlert, Clock, Sparkles, AlertTriangle } from 'lucide-react';
 import type { TouristSpotDashboard } from '../models/Spot';
+import { getDangerScore, INSUFFICIENT_DATA_LABEL } from '../utils/dangerScore';
 
 interface SpotInfoPanelProps {
   spot: TouristSpotDashboard;
@@ -8,7 +9,8 @@ interface SpotInfoPanelProps {
 }
 
 // Classifica o nível de risco a partir do danger_score
-const nivelDeRisco = (score: number) => {
+const nivelDeRisco = (score: number | null) => {
+  if (score == null) return { label: INSUFFICIENT_DATA_LABEL, texto: 'text-[#505f76]', fundo: 'bg-[#94a3b8]', badge: 'bg-slate-100 border-slate-200' };
   if (score >= 60) return { label: 'Alto Risco', texto: 'text-[#ba1a1a]', fundo: 'bg-[#ba1a1a]', badge: 'bg-red-50 border-red-200' };
   if (score > 0) return { label: 'Risco Moderado', texto: 'text-[#d97706]', fundo: 'bg-[#d97706]', badge: 'bg-amber-50 border-amber-200' };
   return { label: 'Seguro', texto: 'text-emerald-700', fundo: 'bg-emerald-500', badge: 'bg-emerald-50 border-emerald-200' };
@@ -22,7 +24,7 @@ const formatarData = (valor: any) => {
 };
 
 export default function SpotInfoPanel({ spot, alertas = [], onClose }: SpotInfoPanelProps) {
-  const score = spot.danger_score ?? 0;
+  const score = getDangerScore(spot);
   const risco = nivelDeRisco(score);
   const nome = spot.nome || spot.name || 'Local Sem Nome';
   const resumo = spot.resumo_ia || spot.description;
@@ -76,11 +78,11 @@ export default function SpotInfoPanel({ spot, alertas = [], onClose }: SpotInfoP
               <ShieldAlert className={`w-3.5 h-3.5 ${risco.texto}`} /> Índice de Perigo
             </span>
             <span className={`${risco.texto} ${risco.badge} border font-bold px-2 py-0.5 rounded text-[11px]`}>
-              {Math.round(score)}% · {risco.label}
+              {score != null ? `${Math.round(score)} pts / 100 reviews · ${risco.label}` : risco.label}
             </span>
           </div>
           <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
-            <div className={`${risco.fundo} h-full rounded-full`} style={{ width: `${Math.min(score, 100)}%` }} />
+            <div className={`${risco.fundo} h-full rounded-full`} style={{ width: `${Math.min(score ?? 0, 100)}%` }} />
           </div>
         </div>
 
